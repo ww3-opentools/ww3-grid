@@ -1,0 +1,50 @@
+pycallable: SMCPy.Grid.NC2SMC  # Pycallable to use to generage grid
+args:
+    bathymetry (str):   path to netcdf bathymetry.
+    workdir    (str):   output directory.
+    gid        (str):   grid id.
+    grid       (dict):
+        Rotated       (bool):    Rotated grid (True, False).
+        urlat         (float):   Upper right latitude (otherwise, take from file).
+        lllat         (float):   Lower left latitude (otherwise, take from file).
+        urlon         (float):   Upper right longitude (otherwise, take from file).
+        lllon         (float):   Lower left longitude (otherwise, take from file)
+        mergelat      (float):   First merge latitude
+        mergelat2     (float):   Second merge latitude
+        zoom          (int):     Zoom grid (just does integer zooming )
+        polygon_check (bool):    Exclude based on coastal polygon test (True, False)
+        exclude_flags (bool):    path to exclude flags
+        refine_region (dict):    force refining of a region defined by the supplied polygon
+            all: # e.g. Refine over oceania
+                lats:   [-50, -50, 20, 20, 20]
+                lons:   [100, 190, 190, 100, 100]
+            none: # e.g. ignore the Americas
+                lats:   [-50, -50, 20, 20, 20]
+                lons:   [250, 330, 330, 250, 250]
+    conventions (dict):
+        yname         (str):     y variable name
+        xname         (str):     x variable name
+        zname         (str):     z variable name
+        zscale        (str):     z scale
+        xyorder       (bool):    xyorder (True, False)
+    smc (dict):
+        smctiers      (int):     Number of smc tiers
+        depthlim      (int):     Depth to refine on
+        depthvar      (int):     Depth variation to refine on
+    ww3meta (dict):
+        latlonscale   (int):     latlonscale
+        llcrnrscale   (int):     latlonscale
+        lsmdepth      (int):     TODO
+        mindepth      (int):     Model minimum depth
+        blockscale    (int):     Scale factor for blocking information TODO not sure what this is doing
+    plotting          (dict):
+        projection    (str):     Projection, default PlateCarree
+        clon          (float):   Central latitude, default 180.0
+        clat          (float):   Central longitude, default 0.0
+        fillplot      (bool):    Plot with filled cells, default True
+        cellplot      (bool):    Plot with unfilled cells, default True
+        interactive   (bool):    Display plots interactively, default True
+    actions (dict):
+        cell          (bool):    Generate cell plot, default True
+        face          (bool):    Generate face arrays, default True
+        plot          (bool):    Generate grid plots, default True
