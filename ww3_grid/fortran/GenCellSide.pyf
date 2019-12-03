@@ -1,0 +1,69 @@
+!    -*- f90 -*-
+! Note: the context of this file is case sensitive.
+
+python module GenCellSide ! in 
+    interface  ! in :GenCellSide
+        module gencellside ! in :GenCellSide:GenCellSide.f90
+            integer, parameter,optional :: ncl=2250000
+            integer, parameter,optional :: nfc=2360000
+            real dimension(2250001) :: dx
+            real dimension(2250001) :: dy
+            real dimension(2250001) :: dxr
+            real dimension(2250001) :: dyr
+            real dimension(2250001) :: chg
+            integer :: nu
+            integer :: nv
+            integer :: nc
+            integer :: ns
+            integer :: nt
+            integer :: n9
+            integer :: n8
+            integer :: n4
+            integer :: n2
+            integer :: n1
+            integer dimension(4,2250000) :: ice
+            integer dimension(2250000) :: kg
+            integer dimension(7,2360000) :: isd
+            integer dimension(8,2360000) :: jsd
+            integer :: i
+            integer :: ii
+            integer :: ij
+            integer :: ijk
+            integer :: j
+            integer :: jj
+            integer :: jk
+            integer :: jkl
+            integer :: k
+            integer :: kk
+            integer :: kl
+            integer :: klm
+            integer :: l
+            integer :: ll
+            integer :: lm
+            integer :: lmn
+            integer :: m
+            integer :: mm
+            integer :: mn
+            integer :: n
+            integer :: nn
+            integer :: nlat
+            integer :: nlon
+            character(len=1), optional,dimension(6),depend(m) :: xext=(/'s','b','w','e','c','m'/)
+            character(len=16), optional :: rundate='smc50 8 aug 2011'
+            subroutine adapgrid(gridid,nlat,nlon,bx,by) ! in :GenCellSide:GenCellSide.f90:gencellside
+                character*32 :: gridid
+                integer :: nlat
+                integer :: nlon
+                real :: bx
+                real :: by
+            end subroutine adapgrid
+            subroutine cellside(gridid,nlon) ! in :GenCellSide:GenCellSide.f90:gencellside
+                character*32 :: gridid
+                integer :: nlon
+            end subroutine cellside
+        end module gencellside
+    end interface 
+end python module GenCellSide
+
+! This file was auto-generated with f2py (version:2).
+! See http://cens.ioc.ee/projects/f2py2e/
