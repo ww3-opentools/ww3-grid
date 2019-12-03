@@ -2,12 +2,11 @@
 Credits
 =======
 
-Development Lead
-----------------
-
-* ww3-opentools developers <t.durrant@oceanum.science>
-
 Contributors
 ------------
 
-None yet. Why not be the first?
+Tom Durrant
+Andy Saulter
+Chris Bunney 
+JianGuo Li
+
