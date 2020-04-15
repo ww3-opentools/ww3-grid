@@ -17,6 +17,8 @@ RUNNING THE CODE
 The library can be directly imported into a python environment, or run via the
 'run_gebco_reduce.py' script using a given set of actions:
    - reduce: creates a reduced GEBCO bathymetry in a new netCDF file
+   - interpolated: creates an interpolated reduced GEBCO bathymetry in a new netCDF file 
+      (this is slower than reduce but may be simpler for later steps in grid generation)
    - correct: modifies a bathymetry file to correct/remove lakes
    - plot: visualize depth and/or land-sea mask information from a modified bathymetry file
 
@@ -33,6 +35,10 @@ USERPATH/NEWNAME.cfg
 The options can then be run as:
 
 python run_gebco_reduce.py reduce USERPATH/NEWNAME.cfg
+
+or
+ 
+python run_gebco_reduce.py interpolate USERPATH/NEWNAME.cfg
 
 or
  

@@ -10,6 +10,7 @@
 
 import netCDF4 as nc
 import numpy as np
+import scipy.interpolate as interp
 import matplotlib.pyplot as plt
 
 def correctLakesBathy(latout, lonout, depout, mskout, depthmin=0.0, removesmall=None, caspianonly=False):
@@ -177,6 +178,43 @@ def writeReducedNC(outfile, scalefac, depthmin, latout, lonout,
     return
 
 
+def writeInterpolatedNC(outfile, dx, dy, depthmin, latout, lonout, 
+                    depout, mskout, datadir='.'):
+    '''Write out the reduced dataset to a new netCDF file'''
+
+    loresfile = datadir + '/' + outfile
+    print('[INFO] Writing reduced grid data to %s' %loresfile)
+    with nc.Dataset(loresfile, 'w') as nbg:
+        ndimx = nbg.createDimension('lon',size=np.size(lonout))
+        ndimy = nbg.createDimension('lat',size=np.size(latout))
+
+        ndep = nbg.createVariable('lat','f8',dimensions=('lat'))
+        ndep.units = 'degrees_east'
+        ndep[:] = latout[:]
+
+        ndep = nbg.createVariable('lon','f8',dimensions=('lon'))
+        ndep.units = 'degrees_north'
+        ndep[:] = lonout[:]
+
+        ndep = nbg.createVariable('elevation','f8',dimensions=('lat','lon'))
+        ndep.units = 'm'
+        ndep[:,:] = depout[:,:]
+
+        ndep = nbg.createVariable('landmask','f8',dimensions=('lat','lon'))
+        ndep.units = '1'
+        ndep[:,:] = mskout[:,:]
+
+        # add global attributes to describe processing
+        nbg.description = 'Interpolated GEBCO bathymetry grid: mean depth values over cell'
+        nbg.interpolation_dx = dx
+        nbg.interpolation_dy = dy
+        nbg.minimum_depth = depthmin
+
+        #nbg.close()
+
+    return
+
+
 def plotGrid(latout, lonout, depths=None, landsea=None, depthmin=5.0, depthmax=-500.0):
     '''Plots out the reduced grid as a check'''
 
@@ -333,6 +371,114 @@ def reduceGEBCO(scalefac=6, depthmin=0.0, cutout=None, pltchk=True, correctlakes
     # write out data to a new netCDF file
     loresfile = 'GEBCO_2014_2D_reduced_%d' %scalefac + '.nc'
     writeReducedNC(loresfile, scalefac, depthmin, latout, lonout, 
+                    depout, mskout, datadir=datadir)    
+
+    return
+
+
+def interpGrid(hiresfile, dx=0.5, dy=0.5, depthmin=0.0, cutout=None, loopmethod=False):
+    '''Reduce the size of GEBCO grid by interpolating cells.
+       Presently this has been tested with GEBCO_2014, i.e. 30 seconds grid'''
+
+    print('[INFO] Running reduction of GEBCO data to resolution dx:%.4f, dy:%.4f' %(dx,dy))
+    print('[INFO] Reading data from %s' %hiresfile)
+    d = nc.Dataset(hiresfile)
+
+    nlats = np.size(d.dimensions['lat'])
+    nlons = np.size(d.dimensions['lon'])
+
+    tilemaxx = 7200
+    tilemaxy = 3600
+    if cutout is None:
+        x0 = -180.0 + dx / 2.0
+        y0 = -90.0 + dy / 2.0
+        xl = -1.0 * x0
+        yl = -1.0 * y0
+        offsx = 0
+        offsy = 0
+    else:
+        # read from dictionary? json file?
+        dimy = 1200
+        dimx = 2400
+        offsx = 3200
+        offsy = 8400
+
+    # set the output arrays for reduced grid
+    newy = np.int((yl-y0)/dy+1)
+    newx = np.int((xl-x0)/dx+1)
+    depout = np.zeros([newy, newx])
+    mskout = np.zeros([newy, newx])
+    latout = np.arange(y0, yl+dy/5.0, dy)
+    lonout = np.arange(x0, xl+dx/5.0, dx)
+
+    # using loops/tiles here to avoid memory problems with read in of full dataset
+    lpx = offsx
+    lpoutx = 0
+    while lpx < nlons-1:
+        addx = np.min([tilemaxx+1, nlons-lpx])
+        tmplon = d.variables['lon'][lpx:lpx+addx]
+        addoutx = np.int(np.floor((tmplon[-1] - lonout[lpoutx]) / dx))
+        print(tmplon[0],tmplon[-1])
+        print(addoutx)
+        print(lonout[lpoutx],lonout[lpoutx+addoutx])
+        lpy = offsy
+        lpouty = 0        
+        while lpy < nlats-1:
+            print('[INFO] Working on tile from x:%d, y:%d' %(lpx,lpy))
+            addy = np.min([tilemaxy+1, nlons-lpy])
+            tmplat = d.variables['lat'][lpy:lpy+addy]
+            addouty = np.int(np.floor((tmplat[-1] - latout[lpouty]) / dy))
+            print(tmplat[0],tmplat[-1])
+            print(addouty)
+            print(latout[lpouty],latout[lpouty+addouty])
+            tmpdep = d.variables['elevation'][lpy:lpy+addy,lpx:lpx+addx]
+            tmpmsk = np.zeros(np.shape(tmpdep))
+            tmpmsk[tmpdep > depthmin] = 1.
+            print('... read subdomain from file')
+            splinedep = interp.RectBivariateSpline(tmplat,tmplon,tmpdep)
+            depout[lpouty:lpouty+addouty+1,lpoutx:lpoutx+addoutx+1] = \
+              splinedep(latout[lpouty:lpouty+addouty+1],lonout[lpoutx:lpoutx+addoutx+1])
+            splinemsk = interp.RectBivariateSpline(tmplat,tmplon,tmpmsk)
+            mskout[lpouty:lpouty+addouty+1,lpoutx:lpoutx+addoutx+1] = \
+              splinemsk(latout[lpouty:lpouty+addouty+1],lonout[lpoutx:lpoutx+addoutx+1])
+            print('... interpolated to reduced subdomain')
+            lpy = lpy + addy - 1
+            lpouty = lpouty + addouty + 1
+        lpx = lpx + addx - 1
+        lpoutx = lpoutx + addoutx + 1
+
+    # correct spline interpolation limits for mask
+    mskout[mskout < 0.005] = 0.0
+    mskout[mskout > 0.995] = 1.0
+
+    d.close()
+
+    return latout, lonout, depout, mskout
+
+
+def interpGEBCO(dx=0.5, dy=0.5, depthmin=0.0, cutout=None, pltchk=True, correctlakes=False,
+                 gebcofile='GEBCO_2014_2D.nc', datadir='.'):
+    '''Controls the grid interpolation process'''
+
+    # generate the reduced grid
+    hiresfile = datadir + '/' + gebcofile
+    latout, lonout, depout, mskout = interpGrid(hiresfile, dx=dx, dy=dy, depthmin=depthmin, cutout=cutout)
+    if pltchk:
+        plotGrid(latout, lonout, depths=depout, landsea=mskout, depthmin=5.0, depthmax=-500.0)
+
+    # correct the land bathy as required
+    # at present this will run with the correctLakesBathy defaults 
+    #  - adds large lakes and does not remove small water bodies
+    if correctlakes:
+        depout, mskout = correctLakesBathy(latout, lonout, depout, mskout)
+        if pltchk:
+            plotGrid(latout, lonout, depths=depout, landsea=mskout, depthmin=5.0, depthmax=-500.0)
+
+    # write out data to a new netCDF file
+    interpstr = '%d' %np.floor(dx) + 'd%d' %np.floor(10000*(dx-np.floor(dx)))
+    interpstr = interpstr + 'by%d' %np.floor(dy) + 'd%d' %np.floor(10000*(dy-np.floor(dy)))
+    loresfile = 'GEBCO_2014_2D_interpolated_%s' %interpstr + '.nc'
+    writeInterpolatedNC(loresfile, dx, dy, depthmin, latout, lonout, 
                     depout, mskout, datadir=datadir)    
 
     return

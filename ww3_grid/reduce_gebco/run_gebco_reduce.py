@@ -6,6 +6,7 @@ import configparser as cfg
 import sys
 
 from gebco_reduce import reduceGEBCO
+from gebco_reduce import interpGEBCO
 from gebco_reduce import correctLakesBathyfromfile
 from gebco_reduce import plotGridfromfile
 
@@ -28,6 +29,40 @@ def readConfig(action, cfgfile):
             config.read(cfgfile)
             if config.has_option(action,'scalefac'):
                 cfginfo['scalefac'] = np.int(config.get(action,'scalefac'))
+            if config.has_option(action,'depthmin'):
+                cfginfo['depthmin'] = np.float(config.get(action,'depthmin'))
+            if config.has_option(action,'pltchk'):
+                if config.get(action,'pltchk').lower() == 'false':
+                    cfginfo['pltchk'] = False
+            if config.has_option(action,'correctlakes'):
+                if config.get(action,'correctlakes').lower() == 'true':
+                    cfginfo['correctlakes'] = True
+            if config.has_option(action,'gebcofile'):
+                cfginfo['gebcofile'] = config.get(action,'gebcofile')
+            if config.has_option(action,'datadir'):
+                cfginfo['datadir'] = config.get(action,'datadir')
+        except:
+            print('[WARN] Configuration file %s missing; returning defaults' %cfgfile)
+
+    if action == 'interpolate':
+        # set defaults
+        cfginfo = {'dx':0.5,
+                   'dy':0.5,
+                   'depthmin':0.0,
+                   'cutout':None,
+                   'pltchk':True,
+                   'correctlakes':False,
+                   'gebcofile':'GEBCO_2014_2D.nc',
+                   'datadir':'.'}
+        # read updated info from the configuration file
+        print('[INFO] Searching for configuration information from: %s' %cfgfile)
+        config = cfg.RawConfigParser()
+        try:
+            config.read(cfgfile)
+            if config.has_option(action,'dx'):
+                cfginfo['dx'] = np.float(config.get(action,'dx'))
+            if config.has_option(action,'dy'):
+                cfginfo['dy'] = np.float(config.get(action,'dy'))
             if config.has_option(action,'depthmin'):
                 cfginfo['depthmin'] = np.float(config.get(action,'depthmin'))
             if config.has_option(action,'pltchk'):
@@ -117,6 +152,17 @@ else:
 if action.lower() == 'reduce':
     cfginfo = readConfig('reduce', cfgfile)
     reduceGEBCO(scalefac=cfginfo['scalefac'], 
+                 depthmin=cfginfo['depthmin'],
+                 cutout=cfginfo['cutout'],
+                 pltchk=cfginfo['pltchk'],
+                 correctlakes=cfginfo['correctlakes'],
+                 gebcofile=cfginfo['gebcofile'],
+                 datadir=cfginfo['datadir'])
+
+elif action.lower() == 'interpolate':
+    cfginfo = readConfig('interpolate', cfgfile)
+    interpGEBCO(dx=cfginfo['dx'], 
+                 dy=cfginfo['dy'], 
                  depthmin=cfginfo['depthmin'],
                  cutout=cfginfo['cutout'],
                  pltchk=cfginfo['pltchk'],
