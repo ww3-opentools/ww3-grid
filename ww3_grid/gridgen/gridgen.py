@@ -990,7 +990,7 @@ def loadNCsmc(smcfile):
 
 def readGEBCO(filein, getpland=True, lon360=False):
 
-    elevscale = -1.0 #GEBCO water depths are -ve
+    elevscale = -1.0 #GEBCO and reduced file water depths are -ve
 
     print('[INFO] Reading file derived from GEBCO dataset')
     print('[INFO] Reading baseline bathy data from: %s' %filein)

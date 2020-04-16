@@ -1,0 +1,255 @@
+####
+##- WORKED EXAMPLE: Generate a 2 level global SMC model with base resolution N256
+
+#- This example generates a configuration named as GS256L2, where G-global, S-SMC, 256-denotes N256 using
+#-  atmopsheric modelling convention (i.e. 2*256=512 cells of longitude, 256*3/2 cells of latitude), and
+#-  L2-two levels of SMC refinement (N256 generally, but using N512 around coasts)
+
+
+####
+##- GRID PREPARATION
+
+#- First step was to generate a background global grid at N512, in this case from a GEBCO 2014 bathymetry.
+#-  The method uses the scripts in the 'reduce_gebco' directory and I've taken the 'interpolate' and 'correct'
+#-  steps separately in order to maximise control of the correction step.
+
+#- For the interpolate step, the following was added to a new 'gebco_reduce.cfg' file:
+
+
+## 'interpolate' action; parameters as follows:
+#   dx           - float, cell resolution in x (longitude) dimension for the new grid
+#   dy           - float, cell resolution in y (latitude) dimension for the new grid
+#   depthmin     - float, minimum depth for land-sea cut-off (negative for point in sea)
+#   cutout       - extents for a cutout sub-domain from global
+#   pltchk       - true/false, show results of processing using matplotlib
+#   correctlakes - true/false, apply the lake and below MSL land corrections
+#   gebcofile    - string, the GEBCO bathy file
+#   datadir      - string, working directory containing the GEBCO file and reduced file
+[interpolate]
+dx = 0.3515625
+dy = 0.234375
+depthmin = -1.0
+cutout = None
+pltchk = True
+correctlakes = False
+gebcofile = GEBCO_2014_2D.nc
+datadir = /project/ofrd/bathymetry/GEBCO_2014
+
+
+#-  and the reduced file at N512 is generated at /project/ofrd/bathymetry/GEBCO_2014/GEBCO_2014_2D_interpolated_0d3515by0d2343.nc
+#-  using the script call as follows:
+
+
+python run_gebco_reduce.py interpolate gebco_reduce.cfg
+
+
+#- At this point the new bathymetry has an incorrect representation of the Caspian Sea and other large lakes,
+#-   and includes a number of areas of land below sea level. Here I have fixed the bathymetry to only include
+#-   the Caspian Sea, by adding the following to gebco_reduce.cfg
+
+
+## 'correct' action; parameters as follows:
+#   depthmin     - float, minimum depth for land-sea cut-off
+#   removesmall  - None/integer, (square) side size for small water bodies to be removed
+#   caspianonly  - true/false, only add CaspianSea as a lake, this may be preferable for large scale global applications
+#   pltchk       - true/false, show results of processing using matplotlib
+#   ncfile       - string, the working reduced GEBCO netCDF bathy/landmask file
+#   datadir      - string, working directory containing the reduced file
+[correct]
+depthmin = -1.0
+removesmall = 2
+caspianonly = True
+pltchk = True
+ncfile = GEBCO_2014_2D_interpolated_0d3515by0d2343.nc
+datadir = /project/ofrd/bathymetry/GEBCO_2014
+
+
+#-  and running the script using:
+
+
+python run_gebco_reduce.py correct gebco_reduce.cfg
+
+
+#-  It is probably worth noting that the 'correct' step will modify the interpolated netCDF bathy file in
+#-   place, so you may wish to take a copy of the original interpolated data before running this step (e.g.
+#-   if considering a later change to incorporate other large lakes in the model).
+
+
+####
+##- GENERATING THE SMC GRID
+
+#- This step uses the scripts in the 'gridgen' directory. Here the SMC grid is created using a 
+#-  coarse-to-fine approach, i.e. the method will take multiple steps starting by creating the coarsest
+#-  (N256) 'base' grid and then adding the refined (N512) cells
+
+#- Creating the base grid
+#- Based on 'gridgen_defaults.cfg' I created a new 'gridgen.cfg' configuration file and added a category
+#- named 'basegrid', defining a 'smcbase' action:
+
+
+## 'smcbase' action; parameters as follows:
+#   workdir      - string, location of working directory for grid netCDF file read/write
+#   bathyfile    - string, location of underpinning bathymetry netCDF file
+#   name         - string, generic name for grid collection
+#   label        - string, identifier for grid development stage
+#   bathyfile    - string, location of underpinning bathymetry netCDF file
+#   extents      - comma delimited floats, domain corners as SWlon, SWlat, NElon, NElat (note that
+#                   grid cell centres will be at SWlon+0.5*dx, SWlat+0.5*dy ... NElon-0.5*dx, NElat-0.5*dy)
+#   dx           - float, grid x-axis resolution
+#   dy           - float, grid y-axis resolution
+#   mindepth     - None/float, minimum model depth defined for WAVEWATCH III metadata 
+#                   (defaults to 10m when set None)
+#   drydepthlim  - None/float, cut-off depth for sea to land transition (defaults to 0m when set None)
+#   drypcmin     - None/float, cut-off land percentage for open waters (defaults to 0 when set None)
+#   drypcmax     - None/float, cut-off land percentage for land (defaults to 1 when set None)
+#   getpcland    - True/False, use land percentage information in grid generation (needs bathymetry 
+#                   input file to include 'landmask' variable)
+#   setadj       - True/False, checks for cells adjacent to land for subsequent tier (generally this
+#                   should be set to True)
+[basegrid]
+action = smcbase
+workdir = /project/ofrd/waves/wavegrids/global/grid_netCDF
+bathyfile = /project/ofrd/bathymetry/GEBCO_2014/GEBCO_2014_2D_interpolated_0d3515by0d2343.nc
+name = GW2p0
+label = GS256base
+extents = 0.0,-85.3125,360.0,85.3125
+dx = 0.703125
+dy = 0.46875 
+mindepth = 15.0 
+drydepthlim = 5.0
+drypcmin = 0.1
+drypcmax = 0.7 
+bathytype = gebco
+getpcland = True 
+setadj = True
+
+
+#- When run, this configuration produces a new netCDF file containing the data for the SMC base grid, in
+#-  a file at [workdir]/[name]_[label].nc. The action was made by calling the 'run_gridgen.py' script as
+#-  follows:
+
+
+python run_gridgen.py basegrid gridgen.cfg
+
+
+#- Creating the refined grid
+#- The next step is to generate data for the refined grid cells (i.e. cells marked for splitting in the
+#-  previous step). Based on 'gridgen_defaults.cfg' I added a category named 'tier1', defining a 'tiergen' 
+#-  action, to my 'gridgen.cfg' configuration file:
+
+
+## 'tiergen' action; parameters as follows:
+#   workdir      - string, location of working directory for grid netCDF file read/write
+#   basefile     - string, name of the parent SMC grid netCDF file (assumed in workdir)
+#   bathyfile    - string, location of underpinning bathymetry netCDF file
+#   name         - string, generic name for grid collection
+#   label        - string, identifier for grid development stage
+#   bathyfile    - string, location of underpinning bathymetry netCDF file
+#   mindepth     - None/float, minimum model depth defined for WAVEWATCH III metadata 
+#                   (defaults to 10m when set None)
+#   drydepthlim  - None/float, cut-off depth for sea to land transition (defaults to 0m when set None)
+#   drypcmin     - None/float, cut-off land percentage for open waters (defaults to 0 when set None)
+#   drypcmax     - None/float, cut-off land percentage for land (defaults to 1 when set None)
+#   getpcland    - True/False, use land percentage information in grid generation (needs bathymetry 
+#                   input file to include 'landmask' variable)
+#   setadj       - True/False, checks for cells adjacent to land for subsequent tier (generally this
+#                   should be set to True)
+#   deldry       - True/False, removes dry cells from tier before merge with parent grid (generally this
+#                   should be set to True)
+[tier1]
+action = tiergen
+workdir = /project/ofrd/waves/wavegrids/global/grid_netCDF
+bathyfile = /project/ofrd/bathymetry/GEBCO_2014/GEBCO_2014_2D_interpolated_0d3515by0d2343.nc
+name = GW2p0
+label = GS256L1tier
+mindepth = 15.0 
+drydepthlim = 5.0
+drypcmin = 0.1
+drypcmax = 0.7 
+bathytype = gebco
+getpcland = True 
+setadj = True
+deldry = False
+
+
+#- When run, this configuration produces a new netCDF file containing ONLY the data for new tier cells, in
+#-  a file at [workdir]/[name]_[label].nc. The action was made by calling the 'run_gridgen.py' script as
+#-  follows:
+
+
+python run_gridgen.py tier1 gridgen.cfg
+
+
+
+#- Combining the refined grid
+#- This step combines the refined grid cells with the parent grid. Based on 'gridgen_defaults.cfg' I added 
+#-  a category named 'combine1', defining a 'tiercombine' action, to my 'gridgen.cfg' configuration file:
+
+
+## 'tiercombine' action; parameters as follows:
+#   workdir      - string, location of working directory for grid netCDF file read/write
+#   basefile     - string, name of the parent SMC grid netCDF file (assumed in workdir)
+#   tierfile     - string, name of the tier data netCDF file (assumed in workdir)
+#   bathyfile    - string, location of underpinning bathymetry netCDF file
+#   name         - string, generic name for grid collection
+#   label        - string, identifier for grid development stage
+#   tiernext     - True/False, mark cells for next tier level (set to True if using multiple tiers)
+[combine1]
+action = tiercombine
+workdir = /project/ofrd/waves/wavegrids/global/grid_netCDF
+basefile = GW2p0_GS256base.nc
+tierfile = GW2p0_GS256L1tier.nc
+bathyfile = /project/ofrd/bathymetry/GEBCO_2014/GEBCO_2014_2D_interpolated_0d3515by0d2343.nc
+name = GW2p0
+label = GS256L1
+tiernext = False
+
+
+#- Here I've set 'tiernext' to False as I only need to generate the 1 level of cell refinement.
+#- When run, this configuration produces a new netCDF file containing the SMC grid comprising base and the 
+#-  new (first) tier of cells, in a file at [workdir]/[name]_[label].nc. The action was made by calling the 
+#-  'run_gridgen.py' script as follows:
+
+
+python run_gridgen.py combine1 gridgen.cfg
+
+
+####
+##- PREPARING THE SMC GRID FOR WAVEWATCH III
+
+#- Having created an SMC grid and saved in netCDF format, the next stage is to create the files needed for
+#-  creating a moddef file using ww3_grid
+
+#- Initially the 'run_gridgen.py' is used to create the SMC grid ww3Cels.dat and ww3Obstr.dat files, plus
+#-  accompanying metadata for ww3_grid (in smc.ww3meta.txt) and forcing data pre-processing (in 
+#-  smc.ww3.grid_def).
+#- Based on 'gridgen_defaults.cfg' I added a category named 'writeWW3', defining a 'writeWW3' action, to 
+#-  my 'gridgen.cfg' configuration file:
+
+
+## 'writeWW3' action; parameters as follows:
+#   workdir       - string, location of working directory for grid netCDF file read/write
+#   gridfile      - string, name of the SMC grid netCDF file (assumed in workdir)
+#   writedir      - string, location of directory to write WW3 format files
+#   mindepth      - None/float, minimum model depth defined for WAVEWATCH III metadata 
+#                    (defaults to grid file value when set None)
+#   writemindepth - True/False, writes minimum depth rather than smaller values in grid bathy file
+#                    (normally set false, as WW3 will use a minimum depth set in ww3_grid namelist)
+[writeWW3]
+action = writeWW3
+workdir = /project/ofrd/waves/wavegrids/global/grid_netCDF
+gridfile = GW2p0_GS256L1.nc
+writedir = /project/ofrd/waves/wavegrids/global/GS256L2
+mindepth = None
+writemindepth = False
+
+
+#- and ran the script as follows:
+
+
+python run_gridgen.py writeWW3 gridgen.cfg
+
+
+#- The next step is to generate the cell-face arrays used to link cells in the SMC grid's propagation scheme.
+#-  Processing is quite intensive for large grids, so a script is used to invoke the fortran routine
+#-  genSides.f90 (the necessary executable can be built using 'make_genSides.sh')

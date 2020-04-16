@@ -1,0 +1,11 @@
+Working notes for development
+
+16/04/2020
+ - enable writeWW3 to output a v6.xx namelist, and fortran namelist for SMC grids
+ - correctly output filenames in netCDF write dialogue
+ - test with regular grids
+ - write out an arctic/antarctic(?) subgrid
+
+
+
+
