@@ -1,9 +1,9 @@
 ####
-##- WORKED EXAMPLE: Generate a 2 level global SMC model with base resolution N256
+##- WORKED EXAMPLE: Generate a single level global SMC model with base resolution N256 and arctic extension
 
-#- This example generates a configuration named as GS256L2, where G-global, S-SMC, 256-denotes N256 using
-#-  atmopsheric modelling convention (i.e. 2*256=512 cells of longitude, 256*3/2 cells of latitude), and
-#-  L2-two levels of SMC refinement (N256 generally, but using N512 around coasts)
+#- This example generates a configuration named as GS256A, where G-global, S-SMC, 256-denotes N256 using
+#-  atmopsheric modelling convention (i.e. 2*256=512 cells of longitude, 256*3/2=384 cells of latitude), and
+#-  A-including an arctic extension (deals with singularity at the North Pole)
 
 
 ####
@@ -26,8 +26,8 @@
 #   gebcofile    - string, the GEBCO bathy file
 #   datadir      - string, working directory containing the GEBCO file and reduced file
 [interpolate]
-dx = 0.3515625
-dy = 0.234375
+dx = 0.703125
+dy = 0.46875 
 depthmin = -1.0
 cutout = None
 pltchk = True
@@ -36,7 +36,8 @@ gebcofile = GEBCO_2014_2D.nc
 datadir = /project/ofrd/bathymetry/GEBCO_2014
 
 
-#-  and the reduced file at N512 is generated at /project/ofrd/bathymetry/GEBCO_2014/GEBCO_2014_2D_interpolated_0d3515by0d2343.nc
+#-  and the reduced file at N256 is generated at 
+#-  /project/ofrd/bathymetry/GEBCO_2014/GEBCO_2014_2D_interpolated_0d7031by0d4687.nc
 #-  using the script call as follows:
 
 
@@ -60,7 +61,7 @@ depthmin = -1.0
 removesmall = 2
 caspianonly = True
 pltchk = True
-ncfile = GEBCO_2014_2D_interpolated_0d3515by0d2343.nc
+ncfile = GEBCO_2014_2D_interpolated_0d7031by0d4687.nc
 datadir = /project/ofrd/bathymetry/GEBCO_2014
 
 
@@ -93,8 +94,7 @@ python run_gebco_reduce.py correct gebco_reduce.cfg
 #   name         - string, generic name for grid collection
 #   label        - string, identifier for grid development stage
 #   bathyfile    - string, location of underpinning bathymetry netCDF file
-#   extents      - comma delimited floats, domain corners as SWlon, SWlat, NElon, NElat (note that
-#                   grid cell centres will be at SWlon+0.5*dx, SWlat+0.5*dy ... NElon-0.5*dx, NElat-0.5*dy)
+#   extents      - comma delimited floats, domain corners as SW-lon, SW-lat, NE-lon, NE-lat
 #   dx           - float, grid x-axis resolution
 #   dy           - float, grid y-axis resolution
 #   mindepth     - None/float, minimum model depth defined for WAVEWATCH III metadata 
@@ -109,10 +109,10 @@ python run_gebco_reduce.py correct gebco_reduce.cfg
 [basegrid]
 action = smcbase
 workdir = /project/ofrd/waves/wavegrids/global/grid_netCDF
-bathyfile = /project/ofrd/bathymetry/GEBCO_2014/GEBCO_2014_2D_interpolated_0d3515by0d2343.nc
+bathyfile = /project/ofrd/bathymetry/GEBCO_2014/GEBCO_2014_2D_interpolated_0d7031by0d4687.nc
 name = GW2p0
-label = GS256base
-extents = 0.0,-85.3125,360.0,85.3125
+label = GS256A
+extents = 0.0,-90.0,360.0,90.0
 dx = 0.703125
 dy = 0.46875 
 mindepth = 15.0 
@@ -130,88 +130,6 @@ setadj = True
 
 
 python run_gridgen.py basegrid gridgen.cfg
-
-
-#- Creating the refined grid
-#- The next step is to generate data for the refined grid cells (i.e. cells marked for splitting in the
-#-  previous step). Based on 'gridgen_defaults.cfg' I added a category named 'tier1', defining a 'tiergen' 
-#-  action, to my 'gridgen.cfg' configuration file:
-
-
-## 'tiergen' action; parameters as follows:
-#   workdir      - string, location of working directory for grid netCDF file read/write
-#   basefile     - string, name of the parent SMC grid netCDF file (assumed in workdir)
-#   bathyfile    - string, location of underpinning bathymetry netCDF file
-#   name         - string, generic name for grid collection
-#   label        - string, identifier for grid development stage
-#   bathyfile    - string, location of underpinning bathymetry netCDF file
-#   mindepth     - None/float, minimum model depth defined for WAVEWATCH III metadata 
-#                   (defaults to 10m when set None)
-#   drydepthlim  - None/float, cut-off depth for sea to land transition (defaults to 0m when set None)
-#   drypcmin     - None/float, cut-off land percentage for open waters (defaults to 0 when set None)
-#   drypcmax     - None/float, cut-off land percentage for land (defaults to 1 when set None)
-#   getpcland    - True/False, use land percentage information in grid generation (needs bathymetry 
-#                   input file to include 'landmask' variable)
-#   setadj       - True/False, checks for cells adjacent to land for subsequent tier (generally this
-#                   should be set to True)
-#   deldry       - True/False, removes dry cells from tier before merge with parent grid (generally this
-#                   should be set to True)
-[tier1]
-action = tiergen
-workdir = /project/ofrd/waves/wavegrids/global/grid_netCDF
-bathyfile = /project/ofrd/bathymetry/GEBCO_2014/GEBCO_2014_2D_interpolated_0d3515by0d2343.nc
-name = GW2p0
-label = GS256L1tier
-mindepth = 15.0 
-drydepthlim = 5.0
-drypcmin = 0.1
-drypcmax = 0.7 
-bathytype = gebco
-getpcland = True 
-setadj = True
-deldry = False
-
-
-#- When run, this configuration produces a new netCDF file containing ONLY the data for new tier cells, in
-#-  a file at [workdir]/[name]_[label].nc. The action was made by calling the 'run_gridgen.py' script as
-#-  follows:
-
-
-python run_gridgen.py tier1 gridgen.cfg
-
-
-
-#- Combining the refined grid
-#- This step combines the refined grid cells with the parent grid. Based on 'gridgen_defaults.cfg' I added 
-#-  a category named 'combine1', defining a 'tiercombine' action, to my 'gridgen.cfg' configuration file:
-
-
-## 'tiercombine' action; parameters as follows:
-#   workdir      - string, location of working directory for grid netCDF file read/write
-#   basefile     - string, name of the parent SMC grid netCDF file (assumed in workdir)
-#   tierfile     - string, name of the tier data netCDF file (assumed in workdir)
-#   bathyfile    - string, location of underpinning bathymetry netCDF file
-#   name         - string, generic name for grid collection
-#   label        - string, identifier for grid development stage
-#   tiernext     - True/False, mark cells for next tier level (set to True if using multiple tiers)
-[combine1]
-action = tiercombine
-workdir = /project/ofrd/waves/wavegrids/global/grid_netCDF
-basefile = GW2p0_GS256base.nc
-tierfile = GW2p0_GS256L1tier.nc
-bathyfile = /project/ofrd/bathymetry/GEBCO_2014/GEBCO_2014_2D_interpolated_0d3515by0d2343.nc
-name = GW2p0
-label = GS256L1
-tiernext = False
-
-
-#- Here I've set 'tiernext' to False as I only need to generate the 1 level of cell refinement.
-#- When run, this configuration produces a new netCDF file containing the SMC grid comprising base and the 
-#-  new (first) tier of cells, in a file at [workdir]/[name]_[label].nc. The action was made by calling the 
-#-  'run_gridgen.py' script as follows:
-
-
-python run_gridgen.py combine1 gridgen.cfg
 
 
 ####
@@ -239,8 +157,8 @@ python run_gridgen.py combine1 gridgen.cfg
 [writeWW3]
 action = writeWW3
 workdir = /project/ofrd/waves/wavegrids/global/grid_netCDF
-gridfile = GW2p0_GS256L1.nc
-writedir = /project/ofrd/waves/wavegrids/global/GS256L2
+gridfile = GW2p0_GS256A.nc
+writedir = /project/ofrd/waves/wavegrids/global/GS256A
 mindepth = None
 writemindepth = False
 

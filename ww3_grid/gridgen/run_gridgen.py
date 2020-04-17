@@ -177,6 +177,106 @@ def readConfig(procname, cfgfile):
     return cfginfo        
 
 
+def runGridgen(cfginfo):
+    '''Select and run gridgen actions based on .cfg file namelist'''
+
+    if cfginfo['action'] == 'smcbase':
+        # generate the base grid
+        print('')
+        print('*** Creating SMC base grid')
+        basesmc = grd.createBasesmc(cfginfo['bathyfile'],
+                                    cfginfo['extents'], 
+                                    cfginfo['dx'], 
+                                    cfginfo['dy'], 
+                                    name=cfginfo['name'],
+                                    label=cfginfo['label'],
+                                    mindepth=cfginfo['mindepth'],
+                                    dlim=cfginfo['drydepthlim'], 
+                                    drymin=cfginfo['drypcmin'], 
+                                    drymax=cfginfo['drypcmax'], 
+                                    bathytype=cfginfo['bathytype'],
+                                    getpland=cfginfo['getpcland'],
+                                    setadj=cfginfo['setadj'])
+        # write staging file
+        basefile = basesmc.writeNC(writedir=cfginfo['workdir'])
+        print('Data written to %s' %basefile)
+        # visualize the grid
+        grd.plotGridsmc(basesmc, latlon=False)
+
+    elif cfginfo['action'] == 'tiergen':
+        # load the parent grid
+        print('')
+        print('*** Loading SMC base grid')
+        basefile = cfginfo['workdir'] + '/' + cfginfo['basefile']
+        basesmcrm = grd.loadNCsmc(basefile)
+        # generate the new tier grid
+        print('')
+        print('*** Creating tier for SMC grid')
+        tiersmc = grd.createTiersmc(cfginfo['bathyfile'],
+                                    basesmcrm,
+                                    label=cfginfo['label'],
+                                    mindepth=cfginfo['mindepth'],
+                                    dlim=cfginfo['drydepthlim'], 
+                                    drymin=cfginfo['drypcmin'], 
+                                    drymax=cfginfo['drypcmax'], 
+                                    bathytype=cfginfo['bathytype'],
+                                    getpland=cfginfo['getpcland'],
+                                    setadj=cfginfo['setadj'],
+                                    deldry=cfginfo['deldry'])
+        # save the new tier grid
+        tierfile = tiersmc.writeNC(writedir=cfginfo['workdir'])
+        print('Data written to %s' %tierfile)
+        # visualise the new tier grid
+        grd.plotGridsmc(tiersmc)
+
+    elif cfginfo['action'] == 'tiercombine':
+        # load the parent grid
+        print('')
+        print('*** Loading SMC base grid')
+        basefile = cfginfo['workdir'] + '/' + cfginfo['basefile']
+        basesmcrm = grd.loadNCsmc(basefile)
+        # load the tier
+        print('')
+        print('*** Loading SMC tier')
+        tierfile = cfginfo['workdir'] + '/' + cfginfo['tierfile']
+        tiersmc = grd.loadNCsmc(tierfile)
+        # combine the grids
+        print('')
+        print('*** Combining tier and base')
+        combbaset = grd.joinTiersmc(basesmcrm,
+                                    tiersmc,
+                                    cfginfo['bathyfile'],
+                                    tiernext=cfginfo['tiernext'])
+        combbaset.label = cfginfo['label']
+        # save the grid
+        combbasetfile = combbaset.writeNC(writedir=cfginfo['workdir'])
+        print('Data written to %s' %combbasetfile)
+        # visualise the grid
+        grd.plotGridsmc(combbaset, latlon=False)
+
+    elif cfginfo['action'].lower() == 'writeww3':
+        # load the grid for writing to ww3 format
+        print('')
+        print('*** Loading combined grid')
+        gridfile = cfginfo['workdir'] + '/' + cfginfo['gridfile']
+        combsmc = grd.loadNCsmc(gridfile)
+        # remove any dry cells from the grid
+        print('')
+        print('*** Removing dry cells')
+        combsmc.delDryCells(celltype='alldry')
+        # visualize the grid
+        grd.plotGridsmc(combsmc, latlon=False)
+        # write out ww3 format files
+        print('')
+        print('*** Writing smc cells to text file')
+        combsmc.sortCells()
+        combsmc.writeWW3(writedir=cfginfo['writedir'],
+                         mindepth=cfginfo['mindepth'],
+                         writemindepth=cfginfo['writemindepth'])
+
+    return
+
+
 ## main - read in the required action and run scripts accordingly
 procname = sys.argv[1]
 if len(sys.argv) > 2:
@@ -185,97 +285,5 @@ else:
     cfgfile = './gridgen.cfg'
 
 cfginfo = readConfig(procname, cfgfile)
+runGridgen(cfginfo)
 
-if cfginfo['action'] == 'smcbase':
-    # generate the base grid
-    print('')
-    print('*** Creating SMC base grid')
-    basesmc = grd.createBasesmc(cfginfo['bathyfile'],
-                                cfginfo['extents'], 
-                                cfginfo['dx'], 
-                                cfginfo['dy'], 
-                                name=cfginfo['name'],
-                                label=cfginfo['label'],
-                                mindepth=cfginfo['mindepth'],
-                                dlim=cfginfo['drydepthlim'], 
-                                drymin=cfginfo['drypcmin'], 
-                                drymax=cfginfo['drypcmax'], 
-                                bathytype=cfginfo['bathytype'],
-                                getpland=cfginfo['getpcland'],
-                                setadj=cfginfo['setadj'])
-    # write staging file
-    basefile = basesmc.writeNC(writedir=cfginfo['workdir'])
-    print('Data written to %s' %basefile)
-    # visualize the grid
-    grd.plotGridsmc(basesmc, latlon=False)
-
-elif cfginfo['action'] == 'tiergen':
-    # load the parent grid
-    print('')
-    print('*** Loading SMC base grid')
-    basefile = cfginfo['workdir'] + '/' + cfginfo['basefile']
-    basesmcrm = grd.loadNCsmc(basefile)
-    # generate the new tier grid
-    print('')
-    print('*** Creating tier for SMC grid')
-    tiersmc = grd.createTiersmc(cfginfo['bathyfile'],
-                                basesmcrm,
-                                label=cfginfo['label'],
-                                mindepth=cfginfo['mindepth'],
-                                dlim=cfginfo['drydepthlim'], 
-                                drymin=cfginfo['drypcmin'], 
-                                drymax=cfginfo['drypcmax'], 
-                                bathytype=cfginfo['bathytype'],
-                                getpland=cfginfo['getpcland'],
-                                setadj=cfginfo['setadj'],
-                                deldry=cfginfo['deldry'])
-    # save the new tier grid
-    tierfile = tiersmc.writeNC(writedir=cfginfo['workdir'])
-    print('Data written to %s' %tierfile)
-    # visualise the new tier grid
-    grd.plotGridsmc(tiersmc)
-
-elif cfginfo['action'] == 'tiercombine':
-    # load the parent grid
-    print('')
-    print('*** Loading SMC base grid')
-    basefile = cfginfo['workdir'] + '/' + cfginfo['basefile']
-    basesmcrm = grd.loadNCsmc(basefile)
-    # load the tier
-    print('')
-    print('*** Loading SMC tier')
-    tierfile = cfginfo['workdir'] + '/' + cfginfo['tierfile']
-    tiersmc = grd.loadNCsmc(tierfile)
-    # combine the grids
-    print('')
-    print('*** Combining tier and base')
-    combbaset = grd.joinTiersmc(basesmcrm,
-                                tiersmc,
-                                cfginfo['bathyfile'],
-                                tiernext=cfginfo['tiernext'])
-    combbaset.label = cfginfo['label']
-    # save the grid
-    combbasetfile = combbaset.writeNC(writedir=cfginfo['workdir'])
-    print('Data written to %s' %combbasetfile)
-    # visualise the grid
-    grd.plotGridsmc(combbaset, latlon=False)
-
-elif cfginfo['action'].lower() == 'writeww3':
-    # load the grid for writing to ww3 format
-    print('')
-    print('*** Loading combined grid')
-    gridfile = cfginfo['workdir'] + '/' + cfginfo['gridfile']
-    combsmc = grd.loadNCsmc(gridfile)
-    # remove any dry cells from the grid
-    print('')
-    print('*** Removing dry cells')
-    combsmc.delDryCells(celltype='alldry')
-    # visualize the grid
-    grd.plotGridsmc(combsmc, latlon=False)
-    # write out ww3 format files
-    print('')
-    print('*** Writing smc cells to text file')
-    combsmc.sortCells()
-    combsmc.writeWW3(writedir=cfginfo['writedir'],
-                     mindepth=cfginfo['mindepth'],
-                     writemindepth=cfginfo['writemindepth'])

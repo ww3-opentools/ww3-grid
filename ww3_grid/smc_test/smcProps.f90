@@ -153,7 +153,7 @@
        NAMELIST /PROP_NML/ NSLAT, NSLON, PoLAT, PoLON 
 
 !  Read the grid NAMELIST
-       OPEN(UNIT=11, FILE='ww3Grid.nml',STATUS='OLD',IOSTAT=nn,ACTION='READ')
+       OPEN(UNIT=11, FILE='smcGrid.nml',STATUS='OLD',IOSTAT=nn,ACTION='READ')
        READ (UNIT=11, NML=GRID_NML) 
        READ (UNIT=11, NML=PROP_NML) 
        CLOSE(11)

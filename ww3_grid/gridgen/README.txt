@@ -19,7 +19,8 @@ For SMC models:
    - smcbase: creates an SMC base grid in a new netCDF file
    - tiergen: creates an SMC tier in a new netCDF file 
    - tiercombine: combines SMC base/parent and SMC tier data in a new netCDF file
-   - writeWW3: writes data out in WAVEWATCH III format for ww3_grid
+   - writeWW3: writes data out in WAVEWATCH III format for ww3_grid plus smcGrid.nml
+               file for cell face generation and propagation testing
 
 Default options for the reduce/correct functions are encoded, however it will usually
 be necessary to set these via a configuration file (default name './gebco_reduce.cfg').

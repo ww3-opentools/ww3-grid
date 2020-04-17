@@ -314,7 +314,7 @@ class smcGrid:
                     writemindepth = writemindepth, 
                     depscale=1.0, blkscale=100.0, 
                     rtd=self.rtd, plat=self.plat, plon=self.plon,
-                    writedir=writedir)        
+                    writedir=writedir, name=self.name, label=self.label)        
 
     def writeBounds(self, writedir='.', lon360=True,
                      north=False, east=False, south=False, west=False,
@@ -1183,7 +1183,7 @@ def writeWW3smc(smccells, celldepths, ntiers,
                 writemindepth=False,
                 depscale=1.0, blkscale=100.0, 
                 rtd=False, plat=90.0, plon=0.0,
-                writedir='.'):
+                writedir='.', name='Unknown', label='SMC'):
     '''Write out a regular grid to WAVEWATCH III grid arrays and
        metadata files'''
 
@@ -1194,6 +1194,8 @@ def writeWW3smc(smccells, celldepths, ntiers,
     idfmbathy = 1
     WW3Meta  = writedir+'/smc.ww3meta.txt'
     WW3GDef  = writedir+'/smc.ww3.grid_def'
+    WW3nml   = writedir+'/smc.ww3_grid.nml.txt'
+    smcnml   = writedir+'/smcGrid.nml'
 
     # write out the cells file
     print('[INFO] Writing cell info to '+WW3Cels)
@@ -1243,8 +1245,8 @@ def writeWW3smc(smccells, celldepths, ntiers,
     sagemax = 0.5 * minlon**2.0 * 12.0 / ((2.0*np.pi*maxcg/24.0)**2.0 * cflstep)
 
     # write grid data to grid.inp metadata file
-    # note grid parameters are defined by the samllest cell size
-    # and use the small cell centre for the sw corner
+    # note grid parameters are defined by the largest cell size
+    # and use the large cell centre for the sw corner
     print('[INFO] Writing WW3 metadata to '+WW3Meta)
     with open(WW3Meta,'w') as inp:
         inp.write('$ Grid minimum cell dx: %.2f' %minlon + \
@@ -1292,14 +1294,93 @@ def writeWW3smc(smccells, celldepths, ntiers,
     # write grid data to grid_def file
     # note grid_def parameters for pre-procesing are defined by the largest cell size
     # and use a largest cell centre for the sw corner
-    #nxdef = np.int(nx / 2.0**(ntiers-1))
-    #nydef = np.int(ny / 2.0**(ntiers-1))
     print('[INFO] Writing grid_def metadata to '+WW3GDef)
     with open(WW3GDef,'w') as inp:
         inp.write(' %i' %nx + ' %i' %ny +'\n')
         inp.write(' %12.8f' %mllx +' %12.8f' %mlly +' %10.8f' %mdx +' %10.8f' %mdy +'\n')
         inp.write(' %6.2f' %plon +' %6.2f' %plat +'\n')
         inp.close()
+
+    # write grid data to ww3_grid.nml metadata file
+    # note grid parameters are defined by the largest cell size
+    # and use the large cell centre for the sw corner
+    print('[INFO] Writing WW3 metadata to '+WW3nml)
+    with open(WW3nml,'w') as inp:
+        inp.write('! -------------------------------------------------------------------- !\n')
+        inp.write('! Grid minimum cell dx: %.2f' %minlon + \
+                  'm at latitude %.3f' %maxlat +' degrees\n')
+        inp.write('! CFL minimum timestep (needs rounding down): %i' %cflstep + \
+                  ' seconds\n')
+        inp.write('! Estimated maximum swell age for 24 direction spectrum: %i' %sagemax \
+                  +' seconds\n')
+        inp.write('! Minimum depth set for model at %f' %mindepth + 'm\n')
+        if rtd:
+            inp.write('! Grid specified on rotated pole with plat = %.1f' %plat + \
+                      ', plot = %.1f\n' %plon)
+        inp.write('! -------------------------------------------------------------------- !\n')
+        inp.write('\n')
+        inp.write('! -------------------------------------------------------------------- !\n')
+        inp.write('! Define the grid to preprocess via GRID_NML namelist\n')
+        inp.write('! -------------------------------------------------------------------- !\n')
+        inp.write('&GRID_NML\n')
+        inp.write("  GRID%%NAME           =  'Wave model %s %s'\n" %(name,label))
+        inp.write("  GRID%NML            =  'params.nml'\n")
+        inp.write("  GRID%TYPE           =  'RECT'\n")
+        inp.write("  GRID%COORD          =  'SPHE'\n")
+        inp.write("  GRID%%CLOS           =  'SMPL'\n")
+        inp.write('  GRID%%ZLIM           =  %.1f\n' %depthlim)
+        inp.write('  GRID%%DMIN           =  %.1f\n' %mindepth)
+        inp.write('/\n')
+        inp.write('\n')
+        inp.write('! -------------------------------------------------------------------- !\n')
+        inp.write('! Define the rectilinear grid type via RECT_NML namelist\n')
+        inp.write('! - only for RECT grids -\n')
+        inp.write('! -------------------------------------------------------------------- !\n')
+        inp.write('&RECT_NML\n')
+        inp.write('  RECT%%NX             =  %d\n' %nx)
+        inp.write('  RECT%%NY             =  %d\n' %ny)
+        inp.write('  RECT%%SX             =  %.8f\n' %mdx)
+        inp.write('  RECT%%SY             =  %.8f\n' %mdy)
+        inp.write('  RECT%%X0             =  %.8f\n' %mllx)
+        inp.write('  RECT%%Y0             =  %.8f\n' %mlly)
+        inp.write('/\n')
+        inp.write('\n')
+        inp.write('! -------------------------------------------------------------------- !\n')
+        inp.write('! Define the spherical multiple-cell grid via SMC_NML namelist\n')
+        inp.write('! - only for SMC grids -\n')
+        inp.write('! -------------------------------------------------------------------- !\n')
+        inp.write('&SMC_NML\n')
+        inp.write("  SMC%MCELS%FILENAME  =  'ww3Cels.dat'\n")
+        inp.write("  SMC%ISIDE%FILENAME  =  'ww3GISide.dat'\n")
+        inp.write("  SMC%JSIDE%FILENAME  =  'ww3GJSide.dat'\n")
+        inp.write("  SMC%SUBTR%FILENAME  =  'ww3Obstr.dat'\n")
+        inp.write('/\n')
+        inp.write('\n')
+        inp.close()
+
+    # write grid data to smcGrid.nml file
+    print('[INFO] Writing SMC metadata to '+smcnml)
+    nslat = np.int(np.ceil(ny*2/2))
+    nslon = np.int(np.ceil(nx*2/2))
+    with open(smcnml,'w') as inp:
+        inp.write('&GRID_NML\n')
+        inp.write('  NLEVS =  %d\n' %ntiers)
+        inp.write('  NBLAT =  %d\n' %ny)
+        inp.write('  NBLON =  %d\n' %nx)
+        inp.write('  BSXB  =  %.8f\n' %mdx)
+        inp.write('  BYSB  =  %.8f\n' %mdy)
+        inp.write('  BX0   =  %.8f\n' %mllx)
+        inp.write('  BY0   =  %.8f\n' %mlly)
+        inp.write('/\n')
+        inp.write('&PROP_NML\n')
+        inp.write('  NSLAT =  %d\n' %nslat)
+        inp.write('  NSLON =  %d\n' %nslon)
+        inp.write('  PoLAT =  %.1f\n' %plat)
+        inp.write('  PoLON =  %.1f\n' %plon)
+        inp.write('/\n')
+        inp.close()
+
+    return
 
 
 def writeBoundsmc(smcobj, writedir='.', lon360=True, levsmax=True,
