@@ -1,3 +1,6 @@
+README FOR gridgen AND genSides FUNCTIONS
+
+#------------------------
 USING THE gridgen LIBRARY
 
 PURPOSE
@@ -32,7 +35,29 @@ to a new file
 
 USERPATH/NEWNAME.cfg
 
-The options can then be run as:
 
-python run_gridgen.py USERCATEGORY USERPATH/NEWNAME.cfg
+#-------------------------
+USING THE genSides LIBRARY
+
+PURPOSE
+
+The purpose of this library is to generate a the face cells arrays needed by
+WAVEWATCH III format SMC grid files for use in ww3_grid
+
+
+RUNNING THE CODE
+
+Before running the code, 'genSides.f90' needs to be built using the
+make_genSides.sh (or other local) bash script
+
+The genSides functions ('genSides.exe' and 'countijsdnew') are then
+run using the bash script 'run_genSides.sh' as
+
+./run_genSides.sh WORKINGDIRECTORYPATH smcGrid.nml
+
+where WORKINGDIRECTORYPATH is the path to a directory containing the 'ww3Cels.dat'
+('ww3ArcCels.dat') and 'smcGrid.nml' ('arcGrid.nml') files generated using 'gridgen.py'.
+The .nml namelists provide the necessary control information for genSides and can
+be adapted if needed (e.g. different input Cels.dat filename).
+
 

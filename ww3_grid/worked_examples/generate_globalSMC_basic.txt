@@ -138,10 +138,10 @@ python run_gridgen.py basegrid gridgen.cfg
 #- Having created an SMC grid and saved in netCDF format, the next stage is to create the files needed for
 #-  creating a moddef file using ww3_grid
 
-#- Initially the 'run_gridgen.py' is used to create the SMC grid ww3Cels.dat and ww3Obstr.dat files, plus
-#-  accompanying metadata for ww3_grid (in smc.ww3meta.txt for v4.18, or smc.ww3_grid.nml.txt for v6.xx), 
-#-  forcing data pre-processing (in smc.ww3.grid_def), and an smcGrid.nml file which is used later for
-#-  grid cell face generation and propagation testing.
+#- Initially the 'run_gridgen.py' script is used to create the SMC grid ww3Cels.dat (ww3ArcCels.dat) 
+#-  and ww3Obstr.dat files, plus accompanying metadata for ww3_grid (in smc.ww3meta.txt for v4.18, 
+#-  or smc.ww3_grid.nml.txt for v6.xx), forcing data pre-processing (in smc.ww3.grid_def), and an
+#-  smcGrid.nml (arcGrid.nml) file which is used for grid cell face generation and propagation testing.
 #- Based on 'gridgen_defaults.cfg' I added a category named 'writeWW3', defining a 'writeWW3' action, to 
 #-  my 'gridgen.cfg' configuration file:
 
@@ -154,6 +154,8 @@ python run_gridgen.py basegrid gridgen.cfg
 #                    (defaults to grid file value when set None)
 #   writemindepth - True/False, writes minimum depth rather than smaller values in grid bathy file
 #                    (normally set false, as WW3 will use a minimum depth set in ww3_grid namelist)
+#   arctic        - True/False, write an arctic section for a global grid
+#   arclat        - float, cut-off latitiude used to define arctic region (default 86.4, minimum 84.0)
 [writeWW3]
 action = writeWW3
 workdir = /project/ofrd/waves/wavegrids/global/grid_netCDF
@@ -161,6 +163,8 @@ gridfile = GW2p0_GS256A.nc
 writedir = /project/ofrd/waves/wavegrids/global/GS256A
 mindepth = None
 writemindepth = False
+arctic = True
+arclat = 86.4
 
 
 #- and ran the script as follows:
@@ -170,5 +174,32 @@ python run_gridgen.py writeWW3 gridgen.cfg
 
 
 #- The next step is to generate the cell-face arrays used to link cells in the SMC grid's propagation scheme.
-#-  Processing is quite intensive for large grids, so a script is used to invoke the fortran routine
-#-  genSides.f90 (the necessary executable can be built using 'make_genSides.sh')
+#-  Processing is quite intensive for large grids, so a bash script 'run_genSides.sh' is used to invoke the
+#-  fortran routine genSides.f90 (the necessary executable can be built using 'make_genSides.sh')
+#- In this case I need to generate face arrays for both the main global grid (up to 86.4N) and the arctic
+#-  extension. So the script needs to be run twice using both standard and arctic namelists:
+
+
+./run_genSides.sh /project/ofrd/waves/wavegrids/global/GS256A smcGrid.nml
+./run_genSides.sh /project/ofrd/waves/wavegrids/global/GS256A arcGrid.nml
+
+
+#- The result from these runs is to produce the files ww3GISide.dat,ww3GJSide.dat and, for the arctic grid
+#-  ww3AISide.dat,ww3AJSide.dat
+#- In principle all the necessary files and metadata to run this grid with WAVEWATCH III have not been generated!!
+
+ww3Cels.dat  ww3GISide.dat  ww3GJSide.dat  ww3Obstr.dat [main part of the grid**]
+ww3AISide.dat  ww3AJSide.dat  ww3ArcCels.dat            [arctic extension for the grid]  
+smc.ww3meta.txt                                         [data for input to ww3_grid.inp in v4.18]
+smc.ww3_grid.nml.txt                                    [namelist input to ww3_grid.nml in v6.07 or later]
+smc.ww3.grid_def                                        [data for input to Met Office forcing pre-processing scripts]
+
+#- ** the main part of the grid can be run without the arctic extension. The only piece of metadata that needs
+#-  adjusting is the number of rows (NY) used in the grid definition (NYTOTAL - NYARCTIC + 4)
+
+
+####
+##- TESTING THE SMC GRID PROPAGATION
+
+#- The grid can also be checked, prior to deployment in WAVEWATCH III, by running a propgation test, using the tools
+#-  in 'smc_testing'

@@ -159,7 +159,9 @@ def readConfig(procname, cfgfile):
                    'gridfile':'smcGrid_newgrid.nc',
                    'writedir':'.',
                    'mindepth':None,
-                   'writemindepth':False}
+                   'writemindepth':False,
+                   'arctic':False,
+                   'arclat':86.4}
         # set user options
         if config.has_option(procname,'workdir'):
             cfginfo['workdir'] = config.get(procname,'workdir')
@@ -173,6 +175,11 @@ def readConfig(procname, cfgfile):
         if config.has_option(procname,'writemindepth'):
             if config.get(procname,'writemindepth').lower() == 'true':
                 cfginfo['writemindepth'] = True
+        if config.has_option(procname,'arctic'):
+            if config.get(procname,'arctic').lower() == 'true':
+                cfginfo['arctic'] = True
+        if config.has_option(procname,'arclat'):
+            cfginfo['arclat'] = np.float(config.get(procname,'arclat'))
 
     return cfginfo        
 
@@ -272,7 +279,9 @@ def runGridgen(cfginfo):
         combsmc.sortCells()
         combsmc.writeWW3(writedir=cfginfo['writedir'],
                          mindepth=cfginfo['mindepth'],
-                         writemindepth=cfginfo['writemindepth'])
+                         writemindepth=cfginfo['writemindepth'],
+                         arctic=cfginfo['arctic'],
+                         arclat=cfginfo['arclat'])
 
     return
 

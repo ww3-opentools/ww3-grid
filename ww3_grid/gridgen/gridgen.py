@@ -303,7 +303,8 @@ class smcGrid:
                                                    self.cellbounds,
                                                    self.celldepths)
 
-    def writeWW3(self, writedir='.', mindepth=None, writemindepth=False):
+    def writeWW3(self, writedir='.', mindepth=None, writemindepth=False,
+                  arctic=False, arclat=86.4):
         '''Write the grid data out to ww3_grid compatible files'''
         if mindepth is None:
             mindepth = self.depthmin
@@ -314,6 +315,7 @@ class smcGrid:
                     writemindepth = writemindepth, 
                     depscale=1.0, blkscale=100.0, 
                     rtd=self.rtd, plat=self.plat, plon=self.plon,
+                    arctic=arctic, arclat=arclat,
                     writedir=writedir, name=self.name, label=self.label)        
 
     def writeBounds(self, writedir='.', lon360=True,
@@ -1183,9 +1185,10 @@ def writeWW3smc(smccells, celldepths, ntiers,
                 writemindepth=False,
                 depscale=1.0, blkscale=100.0, 
                 rtd=False, plat=90.0, plon=0.0,
+                arctic=False, arclat=86.4,
                 writedir='.', name='Unknown', label='SMC'):
-    '''Write out a regular grid to WAVEWATCH III grid arrays and
-       metadata files'''
+    '''Write out a regular grid to WAVEWATCH III grid arrays and metadata files
+       NOTE: assumes data has already been sorted into correct cell order'''
 
     WW3Cels = writedir+'/ww3Cels.dat'
     WW3Obst = writedir+'/ww3Obstr.dat'
@@ -1196,29 +1199,80 @@ def writeWW3smc(smccells, celldepths, ntiers,
     WW3GDef  = writedir+'/smc.ww3.grid_def'
     WW3nml   = writedir+'/smc.ww3_grid.nml.txt'
     smcnml   = writedir+'/smcGrid.nml'
+    if arctic:
+        WW3CelsArc = writedir+'/ww3ArcCels.dat'
+        arcnml     = writedir+'/arcGrid.nml'
 
+    # calculating metadata for basegrid (largest smc cell sizes)
+    mdx = 2.0**(ntiers-1) * dx / ldscale # dx value
+    mdy = 2.0**(ntiers-1) * dy / ldscale # dy value
+    mllx = llx * llscale + mdx * ldscale / 2.0 # grid centre x for ll cell
+    mlly = lly * llscale + mdy * ldscale / 2.0 # grid centre y for ll cell
+
+    # work out limits for writing arctic grids
+    ncells = np.shape(smccells)[0]
+    ncellsarc = 0
+    if arctic:
+        if arclat < 84.0:
+            print('[WARN] Arctic latitude limit is too low: resetting to 84 deg N')
+            arclat = 84.0
+        ycellslim = np.floor((arclat-mlly)/mdy) * 2.0**(ntiers-1)
+        yarclim   = ycellslim - 3 * 2.0**(ntiers-1)
+        ntotal = np.shape(smccells)[0]
+        ncells = np.size(np.where(smccells[:,1] <= ycellslim))
+        nbdycells = np.size(np.where(smccells[:,1] == ycellslim))
+        ncellsarc = np.size(np.where(smccells[:,1] >= yarclim))
+        nbdycellsarc = np.size(np.where(smccells[:,1] == yarclim))
+        ncellslast = np.size(np.where(smccells[:,1] == np.max(smccells[:,1])))
+        #print(ycellslim, yarclim, ncells, ncellsarc, ncellslast)
+                
     # write out the cells file
     print('[INFO] Writing cell info to '+WW3Cels)
     with open(WW3Cels,'w') as inp:
-        ncells = np.shape(smccells)[0]
+        # for main gris, first row is total number of cells
+        #  then number of cells in each tier
         outcells = ' %d' %ncells
         for lp in range(ntiers):
-            ntcells = np.size(np.where(smccells[:,3]==np.int(2**lp)))
+            ntcells = np.size(np.where(smccells[:ncells,3]==np.int(2**lp)))
             outcells = outcells + ' %d' %ntcells
         inp.write(outcells+'\n')
         for lp in range(ncells):
             # always write out positive cell depths for now...
             if writemindepth:
-                inp.write(' %5d %5d %2d %2d ' %tuple(smccells[lp,:]) + \
+                inp.write(' %5d %5d %4d %3d ' %tuple(smccells[lp,:]) + \
                            '%5d\n' %np.max([np.abs(celldepths[lp,0]),mindepth]))
             else:
-                inp.write(' %5d %5d %2d %2d ' %tuple(smccells[lp,:]) + '%5d\n' %np.abs(celldepths[lp,0]))
+                inp.write(' %5d %5d %4d %3d ' %tuple(smccells[lp,:]) + '%5d\n' %np.abs(celldepths[lp,0]))
         inp.close()
+    if arctic:
+        print('[INFO] Writing arctic grid cell info to '+WW3CelsArc)
+        with open(WW3CelsArc,'w') as inp:
+            # for arctic, first row is total number of cells
+            #  then number of boundary cells in final row of main grid and first row of arctic grid
+            ncellsout = ncellsarc - ncellslast + 1 #ignore data in last row, this will form polar cell
+            outcells = ' %d' %ncellsout + ' %d' %nbdycells + ' %d' %nbdycellsarc
+            inp.write(outcells+'\n')
+            for lp in range(ntotal-ncellsarc,ntotal-ncellslast):
+                # always write out positive cell depths for now...
+                if writemindepth:
+                    inp.write(' %5d %5d %4d %3d ' %tuple(smccells[lp,:]) + \
+                               '%5d\n' %np.max([np.abs(celldepths[lp,0]),mindepth]))
+                else:
+                    inp.write(' %5d %5d %4d %3d ' %tuple(smccells[lp,:]) + '%5d\n' %np.abs(celldepths[lp,0]))
+            # polar cell, use average depth over last row and same tier x value as previous row
+            avgdep = np.mean(celldepths[ntotal-ncellslast:,0])
+            inp.write(' %5d %5d %4d %3d ' %tuple([smccells[ntotal-ncellslast,0],
+                                                  smccells[ntotal-ncellslast,1],
+                                                  smccells[ntotal-ncellslast-1,2],
+                                                  smccells[ntotal-ncellslast,3]]) + '%5d\n' %np.abs(avgdep))
+            inp.close()
 
-    # write out the obstruction file
+
+    # write out the obstruction file (note, no need to write arctic obstructions
+    #  since mininum latitude value ensures no land is present in grid)
     print('[INFO] Writing obstruction info to '+WW3Obst)
     with open(WW3Obst,'w') as inp:
-        ncells = np.shape(smccells)[0]
+        #ncells = np.shape(smccells)[0]
         outcells = ' %d' %ncells
         inp.write(outcells+'   1\n')
         for lp in range(ncells):
@@ -1230,12 +1284,6 @@ def writeWW3smc(smccells, celldepths, ntiers,
         inp.close()
 
     # write info to metadata file
-
-    # calculating output metadata here
-    mdx = 2.0**(ntiers-1) * dx / ldscale # values for grid_def file - based on largest smc cell size
-    mdy = 2.0**(ntiers-1) * dy / ldscale # values for grid_def file - based on largest smc cell size
-    mllx = llx * llscale + mdx * ldscale / 2.0 # grid centres for ll cell - based on largest smc cell
-    mlly = lly * llscale + mdy * ldscale / 2.0 # grid centres for ll cell - based on largest smc cell
 
     # calculate limits on CFL and 2nd order swell age - based on largest smc cell size
     maxlat  = (lly / llscale) + np.float(ny) * (dy / ldscale)
@@ -1287,9 +1335,23 @@ def writeWW3smc(smccells, celldepths, ntiers,
         inp.write(' %12.8f' %mllx +' %12.8f' %mlly +' %5.1f' %llscale +'\n')
         inp.write(' %5.2f' %depthlim +' %5.1f' %mindepth +' %i' %unitbathy + \
                   ' %5.1f' %depscale +' %i' %idlabathy +' %i' %idfmbathy + \
-                  " '(....)' 'NAME' '%s" %WW3Cels +"'\n")
+                  " '(....)' 'NAME' 'SMCFileNotReqd'\n")
         inp.write('$\n')
-        inp.close()
+        inp.write('$ SMC grid cell and face arrays ---------------------------------------$\n')
+        inp.write('$\n')
+        inp.write("  32  1  1  '(....)'  'ww3Cels.dat'\n")
+        inp.write("  33  1  1  '(....)'  'ww3GISide.dat'\n")
+        inp.write("  34  1  1  '(....)'  'ww3GJSide.dat'\n")
+        inp.write("  31  1  1  '(....)'  'ww3Obstr.dat'\n")
+        inp.write('$\n')
+        if arctic:
+            inp.write('$ Extra cell and face arrays for Arctic part.  JGLi16Jan2014\n')
+            inp.write('$\n')
+            inp.write("  36  1  1  '(....)'  'ww3ArcCels.dat'\n")
+            inp.write("  37  1  1  '(....)'  'ww3AISide.dat'\n")
+            inp.write("  38  1  1  '(....)'  'ww3AJSide.dat'\n")
+            inp.write('$\n')
+            inp.close()
 
     # write grid data to grid_def file
     # note grid_def parameters for pre-procesing are defined by the largest cell size
@@ -1354,31 +1416,58 @@ def writeWW3smc(smccells, celldepths, ntiers,
         inp.write("  SMC%ISIDE%FILENAME  =  'ww3GISide.dat'\n")
         inp.write("  SMC%JSIDE%FILENAME  =  'ww3GJSide.dat'\n")
         inp.write("  SMC%SUBTR%FILENAME  =  'ww3Obstr.dat'\n")
+        if arctic:
+            inp.write("    SMC%MBARC%FILENAME       = 'ww3ArcCels.dat'\n")
+            inp.write("    SMC%AISID%FILENAME       = 'ww3AISide.dat'\n")
+            inp.write("    SMC%AJSID%FILENAME       = 'ww3AJSide.dat'\n")
         inp.write('/\n')
         inp.write('\n')
         inp.close()
 
     # write grid data to smcGrid.nml file
-    print('[INFO] Writing SMC metadata to '+smcnml)
     nslat = np.int(np.ceil(ny*2/2))
     nslon = np.int(np.ceil(nx*2/2))
+    print('[INFO] Writing SMC metadata to '+smcnml)
     with open(smcnml,'w') as inp:
         inp.write('&GRID_NML\n')
-        inp.write('  NLEVS =  %d\n' %ntiers)
-        inp.write('  NBLAT =  %d\n' %ny)
-        inp.write('  NBLON =  %d\n' %nx)
-        inp.write('  BSXB  =  %.8f\n' %mdx)
-        inp.write('  BYSB  =  %.8f\n' %mdy)
-        inp.write('  BX0   =  %.8f\n' %mllx)
-        inp.write('  BY0   =  %.8f\n' %mlly)
+        inp.write('  NLEVS  = %d\n' %ntiers)
+        inp.write('  NBLAT  = %d\n' %ny)
+        inp.write('  NBLON  = %d\n' %nx)
+        inp.write('  BXSB   = %.8f\n' %mdx)
+        inp.write('  BYSB   = %.8f\n' %mdy)
+        inp.write('  BX0    = %.8f\n' %mllx)
+        inp.write('  BY0    = %.8f\n' %mlly)
+        inp.write('  ARCTIC = .FALSE.\n')
+        inp.write("  FNAME  = 'ww3Cels.dat'\n")
         inp.write('/\n')
         inp.write('&PROP_NML\n')
-        inp.write('  NSLAT =  %d\n' %nslat)
-        inp.write('  NSLON =  %d\n' %nslon)
-        inp.write('  PoLAT =  %.1f\n' %plat)
-        inp.write('  PoLON =  %.1f\n' %plon)
+        inp.write('  NSLAT = %d\n' %nslat)
+        inp.write('  NSLON = %d\n' %nslon)
+        inp.write('  PoLAT = %.1f\n' %plat)
+        inp.write('  PoLON = %.1f\n' %plon)
         inp.write('/\n')
         inp.close()
+    if arctic:
+        print('[INFO] Writing SMC metadata to '+arcnml)
+        with open(arcnml,'w') as inp:
+            inp.write('&GRID_NML\n')
+            inp.write('  NLEVS  = %d\n' %ntiers)
+            inp.write('  NBLAT  = %d\n' %ny)
+            inp.write('  NBLON  = %d\n' %nx)
+            inp.write('  BXSB   = %.8f\n' %mdx)
+            inp.write('  BYSB   = %.8f\n' %mdy)
+            inp.write('  BX0    = %.8f\n' %mllx)
+            inp.write('  BY0    = %.8f\n' %mlly)
+            inp.write('  ARCTIC = .TRUE.\n')
+            inp.write("  FNAME  = 'ww3ArcCels.dat'\n")
+            inp.write('/\n')
+            inp.write('&PROP_NML\n')
+            inp.write('  NSLAT = %d\n' %nslat)
+            inp.write('  NSLON = %d\n' %nslon)
+            inp.write('  PoLAT = %.1f\n' %plat)
+            inp.write('  PoLON = %.1f\n' %plon)
+            inp.write('/\n')
+            inp.close()
 
     return
 
