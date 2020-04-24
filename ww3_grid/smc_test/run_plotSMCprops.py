@@ -21,6 +21,7 @@
 ##  Adapted for SMC61250 propagation test.     JGLi26Feb2019
 ##  Use swhglobl and swhlocal to plot.         JGLi12Mar2019
 ##  Adapted for Andy6125 model test.           JGLi14Mar2019
+##  Adapted for generic SMC grids              ASaulter30Apr2020
 ##
 """
 
@@ -31,16 +32,50 @@ from matplotlib.collections import PolyCollection
 from datetime import datetime, timedelta
 import sys
 
-MCodes='/home/h05/frjl/Python/MyCodes/'
-sys.path.append(MCodes)
-from readcell import readtext
-from readcell import readcell
-from steromap import steromap
-from rgbcolor import rgbcolor
+from plotSMCgrid import readtext
+from plotSMCgrid import readcell   
+from plotSMCgrid import steromap
+from plotSMCgrid import rgbcolor
+from plotSMCgrid import swhglobl
+from plotSMCgrid import swhlocal
 
-##  Path of the cell projection files
+def readGridnml(Wrkdir='.',fname='smcGrid.nml'):
+    """Read grid information from smcGrid namelist file"""
+
+    gridmeta={}
+    nmlfile = Wrkdir+'/'+fname
+    runme=True
+    if runme:
+    #try:
+        with open(nmlfile,'r') as inp:
+            rdfile = inp.readlines()
+            inp.close()
+
+        gridmeta['nlevs'] = np.int(rdfile[1].split('=')[1])
+        gridmeta['dx'] = np.float(rdfile[4].split('=')[1])
+        gridmeta['dy'] = np.float(rdfile[5].split('=')[1]) 
+        gridmeta['x0'] = np.float(rdfile[6].split('=')[1])
+        gridmeta['y0'] = np.float(rdfile[7].split('=')[1]) 
+        gridmeta['nx'] = np.int(rdfile[3].split('=')[1])
+        gridmeta['ny'] = np.int(rdfile[2].split('=')[1]) 
+        gridmeta['grdfile'] = rdfile[9].split('=')[1].split("'")[1] 
+        # use RUNARCTIC to tell me if I need to load an arctic grid file
+        if rdfile[18].split('=')[1].split('.')[1].lower() == 'true':
+            gridmeta['arcfile'] = rdfile[19].split('=')[1].split("'")[1] 
+        else:
+            gridmeta['arcfile'] = None
+        print('[INFO] Read grid data from %s' %nmlfile)
+    #except:
+    #    print('[ERROR] Unable to find file %s' %nmlfile)
+
+    return gridmeta
+
+
 def pltProps(Wrkdir, ModlName, Cel_file='ww3Cels.dat', 
               Arc_file=None, DatGMC=None, Flsdir=None, figtype='.png'):
+
+    """Plots results of SMC propagation tests"""
+    # Note - postscript is presently hardwired in swhglobl and swhlocal
 
     if DatGMC is None:
         DatGMC=Wrkdir
@@ -58,20 +93,20 @@ def pltProps(Wrkdir, ModlName, Cel_file='ww3Cels.dat',
         nb = 0
     ng = int( headrs[0].split()[0] )
     nc = ng + na
-    print(' Merged total cel number = %d' % nc )
+    print('[INFO] Merged total cel number = %d' % nc )
 
-##  Maximum j row number in Global part
+    # Maximum j row number in Global part
     jmxglb = cel[ng-1,1] 
-    print (' Maximum j row = %d' % jmxglb )
+    print ('[INFO] Maximum j row = %d' % jmxglb )
 
-##  Use own color map and defined depth colors 
-    colrfile = MCodes+'rgbspectrum.dat'
+    # Use own color map and defined depth colors 
+    colrfile = 'rgbspectrum.dat'
     colrs = rgbcolor( colrfile )
 
-##  Possible selection of your plot types. 
+    ##  Possible selection of your plot types. 
     gorloc={0:'Global',1:'EuroArc',2:'Pacific',3:'Atlantic'}
 
-##  Prompt selection choices and ask for one input
+    # Prompt selection choices and ask for one input
     print(" \n ", gorloc)
     instr = input("\n *** Please enter your selected number here > ")
     m = int(instr)
@@ -82,8 +117,7 @@ def pltProps(Wrkdir, ModlName, Cel_file='ww3Cels.dat',
 
     print(" Draw SWH plots "+pltype)
 
-##  Choose global or local verts from different files.
-    #vrfile = DatGMC+'/S625Vrts'+pltype[0:4]+'.npz'
+    # Choose global or local verts from different files.
     vrfile = DatGMC+'/'+ModlName+'_Vrts'+pltype[0:4]+'.npz'
     vrtcls = np.load( vrfile )
 
@@ -91,25 +125,23 @@ def pltProps(Wrkdir, ModlName, Cel_file='ww3Cels.dat',
         nvrts = vrtcls['nvrt'] ; ncels = vrtcls['ncel']
         svrts = vrtcls['svrt'] ; scels = vrtcls['scel']
         config = vrtcls['cnfg']
-        print(' n/svrts/cels config read ')
-        from swhglobl import swhglobl
+        print('[INFO] n/svrts/cels config read ')
     else:
         nvrts = vrtcls['nvrt'] ; ncels = vrtcls['ncel'] 
         config = vrtcls['cnfg']
-        print(' nvrts, ncels and config read ')
-        from swhlocal import swhlocal
+        print('[INFO] nvrts, ncels and config read ')
 
-##  EuroArc and Pacific paper orientations
+    # EuroArc and Pacific paper orientations
     if( pltype == 'Pacific' ):
         papror='landscape'
     else:
         papror='portrait'
 
-#;; Define spectral direction
+    # Define spectral direction
     ndir=36
     theta=np.arange(ndir)*np.pi*2.0/ndir
 
-#;; Add a spectral array plots for the Northern stripe 
+    # Add a spectral array plots for the Northern stripe 
     x0= 3.0
     y0= 5.0
     t0=np.pi*0.25
@@ -122,7 +154,7 @@ def pltProps(Wrkdir, ModlName, Cel_file='ww3Cels.dat',
             xn[i]=x0+spc*np.cos(theta[i])
             yn[i]=y0+spc*np.sin(theta[i])
 
-#;; Add another spectral array plots for the Southern stripe 
+    # Add another spectral array plots for the Southern stripe 
     x1=-2.0
     y1=-8.0
     cs=np.cos(theta - t0)
@@ -134,25 +166,25 @@ def pltProps(Wrkdir, ModlName, Cel_file='ww3Cels.dat',
             xs[i]=x1+spc*np.cos(theta[i])
             ys[i]=y1+spc*np.sin(theta[i])
 
-#;;  Polar disk spectral array uses the Southern one but new location
+    #  Polar disk spectral array uses the Southern one but new location
     xp= 3.0
     yp= 8.0
 
-#;;  Atlantic disk spectral array uses the Southern one but new location
+    #  Atlantic disk spectral array uses the Southern one but new location
     xt=-1.0
     yt=-2.0
 
-##  Use ijk to count how many times to draw.
+    # Use ijk to count how many times to draw.
     ijk=0
 
-#;; Specify number of steps per hour
+    # Specify number of steps per hour
     nhr=24
 
-#;; Read in cell concentration data files from a list file
-    hdr, cnfiles = readtext(Wrkdir+'/cfiles.txt')
+    # Read in cell concentration data files from a list file
+    hdr, cnfiles = readtext(Flsdir+'/cfiles.txt')
     cfiles = cnfiles.astype(np.str).reshape(len(cnfiles))
 
-##  loop over available files 
+    # loop over available files 
     for nn in range(0,len(cnfiles),1):
         dfile=Flsdir+'/'+cfiles[nn] 
 
@@ -161,18 +193,18 @@ def pltProps(Wrkdir, ModlName, Cel_file='ww3Cels.dat',
         mc = int(hdlist[1])
         swhs = swh2d.flatten()[0:mc]
 
-##  Skip Arctic polar cell if nc = nga
+        # Skip Arctic polar cell if nc = nga
         if( mc != nc ):
-            print( ' Unmatching mc/nc = %d %d' % (mc, nc) ) 
+            print( '[INFO] Unmatching mc/nc = %d %d' % (mc, nc) ) 
             exit()
         else:
-            print(' Plotting cell number mc = %d' % mc )
+            print('[INFO] Plotting cell number mc = %d' % mc )
 
-#;; Convert time step for output file
+        # Convert time step for output file
         ntsp='NTS = %5d' % (mt)
         thrs='T = %5.2d' % (float(mt)/nhr) 
 
-##  Call function to draw the swh plot.
+        # Call function to draw the swh plot.
         figfl = Flsdir + '/Hs' + cfiles[nn][2:7] + figtype
         if( pltype == 'Global' ):
             swhglobl(swhs,nvrts,ncels,svrts,scels,colrs,config,
@@ -182,23 +214,24 @@ def pltProps(Wrkdir, ModlName, Cel_file='ww3Cels.dat',
                  mdlname= ModlName, datx=thrs,psfile=figfl,
                  paprorn=papror )
 
-##  Increase ijk for next plot
+    # Increase ijk for next plot
         ijk += 1
-        print(" Finish plot No.", ijk," at ", datetime.now())
+        print("[INFO] Finish plot No.", ijk," at ", datetime.now())
 
-##  End of date loop
+    # End of date loop
     return
 
 
-### main program
-#Wrkdir='/project/ofrd/waves/wavegrids/atlsmc/A36125'
-#ModlName='A36125'
-#Wrkdir='/project/ofrd/waves/wavegrids/global/GS512L3'
-#ModlName='GS512L3'
-Wrkdir='/project/ofrd/waves/wavegrids/global/GS512L4EUK'
-ModlName='GS512L4EUK'
-#Wrkdir='/project/ofrd/waves/wavegrids/atlantic/AS512L4EUK'
-#ModlName='AS512L4EUK'
+#---
+# main program
 
+ModlName = sys.argv[1]
+Wrkdir   = sys.argv[2]
 
-pltProps(Wrkdir, ModlName, figtype='.ps')
+# read the grid metadata from the grid namelist file
+gridmeta = readGridnml(Wrkdir,fname='smcGrid.nml')
+
+# plot the propagation test data
+pltProps(Wrkdir, ModlName, 
+         Cel_file=gridmeta['grdfile'], 
+         Arc_file=gridmeta['arcfile'], figtype='.ps')

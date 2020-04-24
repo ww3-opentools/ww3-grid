@@ -1,0 +1,10 @@
+24-04-2020
+
+ - smcProps to allocate array sizes rather than using constants
+ - test with arctic grid
+ - test with rotated pole grid
+ - add license info and tidy up versions/authors
+ - replace ll2eq with iris rotation fucntions?? (or converse in gridgen)
+ - smcplot to generate .png files??
+ - smcProps to use obstruction grid information?
+ - smcplot functions to use arbitrary grid set by user (e.g. in a .cfg file)
