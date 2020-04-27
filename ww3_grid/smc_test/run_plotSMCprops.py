@@ -82,6 +82,8 @@ def pltProps(Wrkdir, ModlName, Cel_file='ww3Cels.dat',
     if Flsdir is None:
         Flsdir=Wrkdir+'/smcProps'
     Cel_file = Wrkdir + '/' + Cel_file
+    if Arc_file is not None:
+        Arc_file = DatGMC+'/'+Arc_file
 
     if Arc_file is not None:
         headrs, cel = readcell( [Cel_file, Arc_file] ) 
@@ -97,7 +99,7 @@ def pltProps(Wrkdir, ModlName, Cel_file='ww3Cels.dat',
 
     # Maximum j row number in Global part
     jmxglb = cel[ng-1,1] 
-    print ('[INFO] Maximum j row = %d' % jmxglb )
+    print ('[INFO] Maximum j row in global grid = %d' % jmxglb )
 
     # Use own color map and defined depth colors 
     colrfile = 'rgbspectrum.dat'
@@ -202,17 +204,17 @@ def pltProps(Wrkdir, ModlName, Cel_file='ww3Cels.dat',
 
         # Convert time step for output file
         ntsp='NTS = %5d' % (mt)
-        thrs='T = %5.2d' % (float(mt)/nhr) 
+        thrs='T = %d' % (np.int(cfiles[nn][2:7])-10000) 
 
         # Call function to draw the swh plot.
         figfl = Flsdir + '/Hs' + cfiles[nn][2:7] + figtype
         if( pltype == 'Global' ):
-            swhglobl(swhs,nvrts,ncels,svrts,scels,colrs,config,
-                 mdlname= ModlName, datx=thrs,psfile=figfl)
+            swhglobl(swhs, nvrts, ncels, svrts, scels, colrs, config,
+                     mdlname= ModlName, datx=thrs, psfile=figfl)
         else:
-            swhlocal(swhs,nvrts,ncels,colrs,config,
-                 mdlname= ModlName, datx=thrs,psfile=figfl,
-                 paprorn=papror )
+            swhlocal(swhs,nvrts, ncels, colrs, config,
+                     mdlname= ModlName, datx=thrs,psfile=figfl,
+                     paprorn=papror )
 
     # Increase ijk for next plot
         ijk += 1

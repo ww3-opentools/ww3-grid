@@ -88,12 +88,13 @@ def pltSMCgrid(ModlName, nlevs, dx, dy, x0, y0, nx, ny,
         DatGMC=Wrkdir
     Cel_file = DatGMC+'/'+Cel_file
     if Arc_file is not None:
-        Arc_file = DatGMC+'/'+Cel_file
+        Arc_file = DatGMC+'/'+Arc_file
 
     if Arc_file is not None:
         headrs, cel = readcell( [Cel_file, Arc_file] ) 
         na = int( headrs[1].split()[0] )
         nb = int( headrs[1].split()[1] )
+        bj = int( headrs[1].split()[3] )
     else:
         headrs, cel = readcell([Cel_file]) 
         na = 0
@@ -131,7 +132,10 @@ def pltSMCgrid(ModlName, nlevs, dx, dy, x0, y0, nx, ny,
     #  Extra array in config for Arctic part
     ngabjm = [ng, na, nb, jmx]
     if Arc_file is None:
-        Arctic = False
+        Arctic = None
+    else:
+        Arctic = bj
+        print('Arctic grid overlap cell at: %d' %Arctic)
 
     #  Use own color map and defined depth colors 
     colrfile = 'rgbspectrum.dat'
@@ -222,34 +226,31 @@ def pltSMCgrid(ModlName, nlevs, dx, dy, x0, y0, nx, ny,
                 scels.append(i)
 
     #  End of cell i loop excluding polar cell
-    print( "[INFO] Processing polar cell at %s " % datetime.now().strftime('%F %H:%M:%S') )
     #;  Polar cell as a octagon, note polar cell size set as size-64 for flux calculation
     #;  As it mergers 8 size-64 cells, each side of the octagon should be size-64 
     #;  10 apexes are calculated to conform with other cells.  To plot it, drop the last apex.
     #  Use a square box for polar cell to fit the new array size.  JGLi30Jan2019
-    #i=nc-1
-    #xc=cel[i,0]+np.arange(4)*(nx-1)/4
-    #yc=xc*0+cel[i,1]
-    #slat=ylat[yc]
-    #slon=xlon[xc]
-
-    #;  Convert slat slon to elat elon with given new pole
-    #   elat, elon, sxc, syc = steromap( slat, slon, plat, plon, Onecl=True )
-
-    #   if( (elat[0] >= 0.0) and (rngsxy[0] < sxc[0] < rngsxy[1])
-    #                        and (rngsxy[2] < syc[0] < rngsxy[3]) ):
-    #       nvrts.append(list(zip(sxc,syc)))
-    #       ncels.append(i)
-
-    #   if( (elat[0] <  0.0) and (pltype == 'Global') ):
-    #       svrts.append(list(zip(sxc,syc)))
-    #       scels.append(i)
+    if Arctic:
+        print( "[INFO] Processing polar cell at %s " % datetime.now().strftime('%F %H:%M:%S') )
+        i=nc-1
+        xc=np.array(cel[i,0]+np.arange(4)*(nx-1)/4, dtype=int)
+        yc=np.array(xc*0+cel[i,1], dtype=int)
+        slat=ylat[yc]
+        slon=xlon[xc]
+        #;  Convert slat slon to elat elon with given new pole
+        elat, elon, sxc, syc = steromap( slat, slon, plat, plon, Onecl=True )
+        if( (elat[0] >= 0.0) and (rngsxy[0] < sxc[0] < rngsxy[1])
+                             and (rngsxy[2] < syc[0] < rngsxy[3]) ):
+            nvrts.append(list(zip(sxc,syc)))
+            ncels.append(i)
+        if( (elat[0] <  0.0) and (pltype == 'Global') ):
+            svrts.append(list(zip(sxc,syc)))
+            scels.append(i)
 
     #  Set plot size and limits and message out anchor point.
     rdpols=[radius, pangle, plon, plat]
     config=np.array([rdpols, sztpxy, rngsxy, clrbxy, ngabjm])
     pzfile=DatGMC+'/' + ModlName + '_Vrts'+pltype[0:4]+'.npz'
-    #pzfile=DatGMC+'/' + ModlName + '_Vrts.npz'
 
     #  Store selected north and south verts and cell numbers for swh plots.
     #  Use the np.savez to save 3/5 variables in one file.  JGLi22Feb2019 
@@ -267,11 +268,11 @@ def pltSMCgrid(ModlName, nlevs, dx, dy, x0, y0, nx, ny,
     psfile=Wrkdir + '/' + ModlName + '_' + pltype[0:4] + 'grd' + figtype 
 
     if( pltype == 'Global'):
-        smcglobl( cel, nvrts,ncels,svrts,scels,colrs, config,
+        smcglobl( cel, nvrts, ncels, svrts, scels, colrs, config,
                  mdlname= ModlName, Arctic=Arctic, buoys=None, psfile=psfile)
 
     else:
-        smclocal( cel, nvrts,ncels,colrs,config, Arctic=Arctic, 
+        smclocal( cel, nvrts, ncels, colrs, config, Arctic=Arctic, 
                  mdlname= ModlName, buoys=None, psfile=psfile,
                  paprorn=papror)
 

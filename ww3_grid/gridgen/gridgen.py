@@ -1286,11 +1286,12 @@ def writeWW3smc(smccells, celldepths, ntiers,
     # write info to metadata file
 
     # calculate limits on CFL and 2nd order swell age - based on largest smc cell size
-    maxlat  = (lly / llscale) + np.float(ny) * (dy / ldscale)
+    maxlat  = np.min([(lly / llscale) + np.float(ny) * (dy / ldscale), 60.0])
     minlon  = 1853.0 * 60.0 * (2.0**(ntiers-1) * dx / ldscale) * np.cos(np.pi*maxlat/180.0)
     maxcg   = 1.4 * 9.81 * 25.0 / (4.0 * np.pi)
     cflstep = minlon / maxcg
-    sagemax = 0.5 * minlon**2.0 * 12.0 / ((2.0*np.pi*maxcg/24.0)**2.0 * cflstep)
+    sagemax = 0.5 * minlon**2.0 * 12.0 / ((2.0*np.pi*maxcg/36.0)**2.0 * cflstep)
+    propts  = 2.0**np.floor(np.log2(cflstep / 150.0)) * 150.0
 
     # write grid data to grid.inp metadata file
     # note grid parameters are defined by the largest cell size
@@ -1301,7 +1302,7 @@ def writeWW3smc(smccells, celldepths, ntiers,
                   'm at latitude %.3f' %maxlat +' degrees\n')
         inp.write('$ CFL minimum timestep (needs rounding down): %i' %cflstep + \
                   ' seconds\n')
-        inp.write('$ Estimated maximum swell age for 24 direction spectrum: %i' %sagemax \
+        inp.write('$ Estimated maximum swell age for 36 direction spectrum: %i' %sagemax \
                   +' seconds\n')
         inp.write('$ Minimum depth set for model at %f' %mindepth + 'm\n')
         if rtd:
@@ -1454,6 +1455,7 @@ def writeWW3smc(smccells, celldepths, ntiers,
         inp.write("  AFNAME  = 'ww3ArcCels.dat'\n")
         inp.write("  AINAME  = 'ww3AISide.dat'\n")
         inp.write("  AJNAME  = 'ww3AJSide.dat'\n")
+        inp.write('  PROPTS  = %.1f\n' %propts)
         inp.write('/\n')
         inp.close()
     if arctic:

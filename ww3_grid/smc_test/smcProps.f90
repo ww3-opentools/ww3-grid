@@ -52,21 +52,20 @@
 !!
 
                     
-      MODULE Constants
-         IMPLICIT NONE
+    MODULE Constants
+       IMPLICIT NONE
 
 ! Parameters fixed in the program
-    INTEGER,PARAMETER::NCL=900000, NFC=900000, NBDY=256, NDIR=36, NWPM=12, NTSM=60
+       INTEGER,PARAMETER:: NCL=900000, NFC=900000, NBDY=256, NDIR=36
+       ! DW sets write out time, 3-hourly
+       ! NTSM sets length of run in hours
+       INTEGER,PARAMETER:: DW=3, NTSM=144/DW
 
-!     REAL,PARAMETER:: PoLAT= 0.0, PoLON=-180.0,                           &
-!       &            DLON=(360.0/1024.0)/(2.0**(MRL-1)), DLAT=DLON*2.0/3.0, &
-!       &            ZrLAT=-24.257812-DLAT*2.0, ZrLON=-98.261719-DLON*2.0,  &
-!       &            Agu36=4.8481E-5, Frqcy=0.0625,   &
-!       &            Pie=3.141592654, RAD2D=180.0/Pie, D2RAD=Pie/180.0
-     REAL,PARAMETER:: Agu36=4.8481E-5, Frqcy=0.0625,   &
-       &            Pie=3.141592654, RAD2D=180.0/Pie, D2RAD=Pie/180.0
+       REAL,PARAMETER:: Agu36=4.8481E-5, Frqcy=0.0625,   &
+         &            Pie=3.141592654, RAD2D=180.0/Pie, D2RAD=Pie/180.0
 
-     REAL,PARAMETER:: DT=150.0, DTR=1.0/DT, AKH=100.0
+       !REAL,PARAMETER:: DT=150.0, AKH=100.0
+       REAL,PARAMETER:: AKH=100.0
 
 !  Some physical and atmospheric constants
        REAL,PARAMETER:: GRVTY=9.806,CPVAP=1004.5,RDRY=287.05, &
@@ -75,8 +74,8 @@
        &    REARTH=6.371E6
 
 ! Array variables to be used for data storage
-       REAL:: BXSB, BYSB, BX0, BY0, PoLAT, PoLON, DLAT, DLON, ZrLAT, ZrLON
-       REAL::  AMG, CMX, CTT, UMX, DY, DYR, DX0, DThta, SWH0, Alpha
+       REAL:: BXSB, BYSB, BX0, BY0, PoLAT, PoLON, DLAT, DLON, ZrLAT, ZrLON, PROPTS
+       REAL::  AMG, CMX, CTT, UMX, DY, DYR, DX0, DThta, SWH0, Alpha, DT
        REAL::  AKHDT2, CGCMX, CRFMX 
        REAL, DIMENSION(-9:NCL):: A, C, D, F, AU, AV, DX, DXR, UC, VC, RCELA
        REAL, DIMENSION(-9:NCL):: HCel, DHDX, DHDY, REFR, CGrp, AngCD, CoGCT, ELaCD
@@ -103,7 +102,7 @@
 !      Date and time for timing of program by calling Date_And_Time
        CHARACTER(LEN=10):: CDate, CTime
 
-      END MODULE Constants
+    END MODULE Constants
 
 
 !!------------------------------------------------------------------------
@@ -140,7 +139,7 @@
        &              AFNAME, AINAME, AJNAME 
 
        NAMELIST /GRID_NML/ NLEVS, NBLAT, NBLON, BXSB, BYSB, BX0, BY0, ARCTIC, FNAME, INAME, JNAME 
-       NAMELIST /PROP_NML/ NSLAT, NSLON, PoLAT, PoLON, RUNARCTIC, AFNAME, AINAME, AJNAME 
+       NAMELIST /PROP_NML/ NSLAT, NSLON, PoLAT, PoLON, RUNARCTIC, AFNAME, AINAME, AJNAME, PROPTS 
 
 !  Read the grid NAMELIST
        OPEN(UNIT=11, FILE='smcGrid.nml',STATUS='OLD',IOSTAT=nn,ACTION='READ')
@@ -158,8 +157,10 @@
        ZrLAT = BY0
        ZrLON = BX0
        MRL = NLEVS
+!  DT uses input propagation step for largest cells
+       DT = PROPTS / 2.0**(NLEVS-1)
 
-! Set array sizes
+!  Set array sizes
        ALLOCATE( YLat(-NLat2:NLat2), CSLat(-NLat2:NLat2),CCLat(-NLat2:NLat2), &
                DXLat(-NLat2:NLat2),TNLat(-NLat2:NLat2) )
        ALLOCATE( NRLCel(0:NLEVS), NRLUFc(0:NLEVS), NRLVFc(0:NLEVS) )
@@ -410,8 +411,9 @@
 
 !!  Specify run time steps and writeup interval
        NT=0
-       NWP= NWPM*MFct
+       NWP= DW*INT(3600.0/DT)*MFct
        NTS= NTSM*NWP 
+       ! Values being used should mean write every 3-hours for a week
        WRITE(6,*) ' Run/writeup length NTS NWP=', NTS, NWP
 
 !  Initialise AngU/V/CD to be zero.
@@ -679,9 +681,11 @@
           ENDIF
 
           !  Output tracer concentration if at selected writeup time steps
-          IF( (NT+MFct .LT. 10*NWP .AND. MOD(NT+MFct,NWP/2) .eq. 0) .OR.    &
-          &    (MOD(NT+MFct,NWP) .eq. 0) .OR. (NT+MFct .eq. NWP/4) )  THEN
-             write(FL9NM(3:7), FMT='(i5)' )  10000+NT+MFct
+          !IF( (NT+MFct .LT. 10*NWP .AND. MOD(NT+MFct,NWP/2) .eq. 0) .OR.    &
+          !&    (MOD(NT+MFct,NWP) .eq. 0) .OR. (NT+MFct .eq. NWP/4) )  THEN
+          !  Output tracer concentration if at selected writeup time steps
+          IF(MOD(NT+MFct,NWP) .eq. 0) THEN
+             write(FL9NM(3:7), FMT='(i5)' )  10000+((NT+MFct)/INT(3600.0/DT))
              OPEN(UNIT=26, FILE=FL9NM, STATUS='NEW',IOSTAT=nn)
              IF(nn /= 0) PRINT*,' File FL9NM was not opened! '
              WRITE(UNIT=6,FMT='(2x,"NT= ",i6,3x,A9)') NT+MFct,FL9NM

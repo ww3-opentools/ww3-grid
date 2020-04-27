@@ -68,6 +68,7 @@ def readcell(celfiles):
             headrs = [ hdlin ]
             cel = celin.copy()
         else:
+            hdlin = hdlin + ' %d' %np.min(celin[:,1]) # add boundary cell j-value
             headrs.append( hdlin )
             cel = np.vstack( (cel, celin) )
         
@@ -422,7 +423,7 @@ def colrboxy(cboxy, colrmap, marks, ncstr=0, nclrm=256):
     return ( xkeys, ykeys, cbarpoly )
 
 
-def smcglobl(cel, nvrts,ncels,svrts,scels,colrs, config, Arctic=True, 
+def smcglobl(cel, nvrts, ncels, svrts, scels, colrs, config, Arctic=None, 
              mdlname='SMC', buoys=None, psfile='output.ps', paprtyp='a3'):
     """
     ##  The smcglobl function plots a global view of a given smc grid.
@@ -438,7 +439,7 @@ def smcglobl(cel, nvrts,ncels,svrts,scels,colrs, config, Arctic=True,
     sztpxy=config[1]
     rngsxy=config[2]
     clrbxy=config[3]
-    if( Arctic ): ncabgm=config[4]
+    if( Arctic is not None ): ncabgm=config[4]
 
     ##  Maximum mapping radius.
     radius=rdpols[0]
@@ -463,7 +464,7 @@ def smcglobl(cel, nvrts,ncels,svrts,scels,colrs, config, Arctic=True,
             ndeps[j] = ncstr + np.rint( (cstar-np.log10(cel[j,4]))*factr ).astype(np.int)
     #ndeps = ncstr + np.rint( (cstar-np.log10(cel[:,4]))*factr ).astype(np.int)
 
-    if( Arctic ):
+    if( Arctic is not None ):
         na=int(ncabgm[1])
         nb=int(ncabgm[2])
         jm=int(ncabgm[3])
@@ -489,14 +490,14 @@ def smcglobl(cel, nvrts,ncels,svrts,scels,colrs, config, Arctic=True,
     pcface = []
     pcedge = []
     for i in ncels:
-        ##  Mark the arctical map-east reference region by first ring of its boundary cells at jmxglb-3
-        ##  Here level 4 is assumed so the 4 overlapping rows are separated by 3*8=24 increments.
-        if( Arctic and cel[i,1] == jm-24 ):
+        if( Arctic is not None ) and ( cel[i,1] == Arctic ):
+            # Mark the arctic map-east reference region by first ring of its boundary cells
             pcface.append(colrs(246))
             pcedge.append(colrs(246))
-        elif( Arctic and cel[i,1] == jm ):
-            pcface.append(colrs(168))
-            pcedge.append(colrs(168))
+        #elif( Arctic is not None ) and ( cel[i,1] == jm ):
+        #    # Mark the arctic cells
+        #    pcface.append(colrs(168))
+        #    pcedge.append(colrs(168))
         else:
             pcface.append(colrs(255))
             pcedge.append(colrs(ndeps[i]))
@@ -521,7 +522,7 @@ def smcglobl(cel, nvrts,ncels,svrts,scels,colrs, config, Arctic=True,
             horizontalalignment='left', fontsize=15, color='k' )
            #rotation=-90,verticalalignment='center', fontsize=15, color='k' )
 
-    # Overlay buoy sits on grid map if buoy file is provided.
+    # Overlay buoy sites on grid map if buoy file is provided.
     if(buoys is not None):
         hdr, buoyll = readtext(buoys)
         nmbu=long(hdr[0])
@@ -581,7 +582,7 @@ def smcglobl(cel, nvrts,ncels,svrts,scels,colrs, config, Arctic=True,
              horizontalalignment='center', fontsize=15, color='k' )
     plt.text(tpx, tpy+dpy*2.0, 'NC='+str(nc), 
              horizontalalignment='center', fontsize=13, color='r' )
-    if( Arctic ):
+    if( Arctic is not None ):
         plt.text(tpx, tpy+dpy*3.0, 'NA='+str(na), 
              horizontalalignment='center', fontsize=13, color='r' )
         plt.text(tpx, tpy+dpy*4.0, 'NB='+str(nb), 
@@ -601,7 +602,7 @@ def smcglobl(cel, nvrts,ncels,svrts,scels,colrs, config, Arctic=True,
             horizontalalignment='right', fontsize=15, color='k' )
             #rotation=-90,verticalalignment='center', fontsize=15, color='k' )
 
-    # Overlay buoy sits on grid map if buoy file is provided.
+    # Overlay buoy sites on grid map if buoy file is provided.
     if(buoys is not None):
 
     #; Mark buoy position on map
@@ -626,7 +627,7 @@ def smcglobl(cel, nvrts,ncels,svrts,scels,colrs, config, Arctic=True,
     return
 
 
-def smclocal(cel, verts, ncels, colrs, config, Arctic=False, 
+def smclocal(cel, verts, ncels, colrs, config, Arctic=None, 
              mdlname='SMC', buoys=None, psfile='output.ps', 
              paprorn='portrait', paprtyp='a3'):
     """
@@ -663,7 +664,7 @@ def smclocal(cel, verts, ncels, colrs, config, Arctic=False,
             ndeps[j] = ncstr + np.rint( (cstar-np.log10(cel[j,4]+11))*factr ).astype(np.int)
     #ndeps = ncstr + np.rint( (cstar-np.log10(cel[:,4]))*factr ).astype(np.int)
 
-    if( Arctic ):
+    if( Arctic is not None ):
         na=int(ncabgm[1])
         nb=int(ncabgm[2])
         jm=int(ncabgm[3])
@@ -692,14 +693,14 @@ def smclocal(cel, verts, ncels, colrs, config, Arctic=False,
     pcface = []
     pcedge = []
     for i in ncels:
-    # Mark the arctical map-east reference region by first ring  
-    # of its boundary cells at jm-3
-        if( Arctic and cel[i,1] == jm-24 ):
+        if( Arctic is not None ) and ( cel[i,1] == Arctic ):
+            # Mark the arctic map-east reference region by first ring of its boundary cells
             pcface.append(colrs(246))
             pcedge.append(colrs(246))
-        elif( Arctic and cel[i,1] == jm ):
-            pcface.append(colrs(168))
-            pcedge.append(colrs(168))
+        #elif( Arctic is not None ) and ( cel[i,1] == jm ):
+        #    # Mark the arctic cells
+        #    pcface.append(colrs(168))
+        #    pcedge.append(colrs(168))
         else:
             pcedge.append(colrs(ndeps[i]+10))
             pcface.append(colrs(ndeps[i]))
@@ -744,7 +745,7 @@ def smclocal(cel, verts, ncels, colrs, config, Arctic=False,
              horizontalalignment='center', fontsize=15, color='k' )
     plt.text(tpx, tpy+dpy*2, 'NC='+str(nc), 
              horizontalalignment='center', fontsize=13, color='r' )
-    if( Arctic ):
+    if( Arctic is not None ):
         plt.text(tpx, tpy+dpy*3, 'NA='+str(na), 
              horizontalalignment='center', fontsize=13, color='r' )
         plt.text(tpx, tpy+dpy*4, 'NB='+str(nb), 
@@ -788,8 +789,8 @@ def smclocal(cel, verts, ncels, colrs, config, Arctic=False,
 ##
 """
 
-def swhglobl(swhs,nvrts,ncels,svrts,scels,colrs,config,
-             mdlname='SMC',datx='2018010106',
+def swhglobl(swhs, nvrts, ncels, svrts, scels, colrs, config,
+             mdlname='SMC', datx='2018010106',
              psfile='output.ps', paprtyp='a3'):
     """
     ##  Draw global swh plot with given polycollections and cell
@@ -970,9 +971,9 @@ def swhglobl(swhs,nvrts,ncels,svrts,scels,colrs,config,
     return
 
 
-def swhlocal(swhs,verts,ncels,colrs,config,
-        mdlname='SMC',datx='2018',psfile='output.ps', 
-        paprorn='portrait', paprtyp='a3'):
+def swhlocal(swhs, verts, ncels, colrs, config,
+             mdlname='SMC', datx='2018', psfile='output.ps', 
+             paprorn='portrait', paprtyp='a3'):
     """
     ##  Draw local swh plot with given polycollections and cell
     ##  array. Output as A3 ps file.        JGLi28Feb2019
