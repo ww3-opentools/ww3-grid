@@ -1,4 +1,4 @@
 #!/bin/bash
 
-ifort -r8 smcProps.f90
+ifort -r8 -mcmodel=medium smcProps.f90
 mv a.out smcProps.exe

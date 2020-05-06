@@ -1,10 +1,15 @@
 Working notes for development
 
 16/04/2020
- - correctly output filenames in netCDF write dialogue
  - test with regular grids
 
 21/04/2020
- - general tidy up of genSides.f90 (and countijsdnew?)
  - make_genSides.sh to work with a less hardwired compiler?
- - import tier cell numbers into array (genSides.f90)
+ - import tier cell numbers into array (genSides.f90, these numbers are only used in output dialogue?)
+
+29/04/2020
+ - add marklandpc and unmark actions to run_gridgen.py and gridgen_defaults.cfg
+ - add what each action does to comments in gridgen_defaults.cfg and README.txt
+
+04/05/2020
+ - add osbox and thruzero options to mark region (maybe merge with mark depth/pcland?)

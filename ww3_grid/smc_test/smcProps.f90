@@ -1,65 +1,65 @@
-!  This module is a common block similar in all AFT Model programs and is
-!  written in FORTRAN 90.
-!                   J G Li   26 Oct 2000
-!!
-!! Adapted for multiple cell 2D advection tests using UNO schemes.
-!!                  J G Li    8 Aug 2007
-!! Reformated for global multiple cell advection tests.
-!!                  J G Li   16 Nov 2007
-!! Modified for extended global SMC grid advection tests.
-!!                  J G Li   28 Nov 2008
-!! Modified for Arctic 2-D spectral transportation tests.
-!!                  J G Li   16 Jul 2009
-!! Adapted for UK3km multi-resolution grid spectral transport.
-!!                  J G Li    8 Feb 2010
-!! Changed for multi-step, multi-resolution G6kSMC grid transport.
-!!                  J G Li   23 Feb 2010
-!! Adapted for 2-part, 4-step, 8-resolution G6kSMC grid spectral transport.
-!!                  J G Li    5 Mar 2010
-!! Add great circle turning term in G6kSMC grid spectral transport.
-!!                  J G Li   22 Mar 2010
-!! Add refraction term and use shallow water wave speed. 
-!!                  J G Li   26 Mar 2010
-!! Modify refraction term with rotation sub.
-!!                  J G Li   18 May 2010
-!! Add diffusion term in advection subs.
-!!                  J G Li    3 Jun 2010
-!! Add Atlantic round patch for comparison with Arctic one.
-!!                  J G Li    2 Jun 2011
-!! New refraction formulation using cg only.
-!!                  J G Li    3 Jun 2011
-!! Old refraction plus refraction limiter to gradient direction.
-!!                  J G Li   16 Jun 2011
-!! Modified for SMC625 global part only spectral transport.
-!!                  J G Li   12 Dec 2011
-!! Modified to use new cell and face array files.  JGLi28Feb2012
-!!
-!! Test redued Arctic part on SMC6-25 grid.   JGLi21Mar2012
-!!
-!! Test refined UK waters on SMC6125 grid.   JGLi08Jan2013
-!!
-!! Adapted for UK 3km global 25km SMC36125 grid.   JGLi28Feb2014
-!!
-!! Adapted for global 25km G25SMC grid.   JGLi07Apr2014
-!!
-!! Add OpenMP directives and Arctic refraction.  JGLi08Jul2015
-!!
-!! Modified for UK 3km global 25km SMC36125 grid.   JGLi09Jul2015
-!!
-!! Modified for Andy6125 Atlantic grid.    JGLi13Mar2019
-!!
-!! Modified for generic grids.    ASaulter30Apr2020
-!!
+!==================================================================================
+! BSD License
+!
+! Copyright (c) 2007-2020, ww3-opentools developers, all rights reserved
+!
+! Redistribution and use in source and binary forms, with or without modification,
+! are permitted provided that the following conditions are met:
+!
+! * Redistributions of source code must retain the above copyright notice, this
+!   list of conditions and the following disclaimer.
+!
+! * Redistributions in binary form must reproduce the above copyright notice, this
+!  list of conditions and the following disclaimer in the documentation and/or
+!  other materials provided with the distribution.
+!
+! * Neither the name of the copyright holder nor the names of its
+!  contributors may be used to endorse or promote products derived from this
+!  software without specific prior written permission.
+!
+! THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+! ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+! WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+! IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
+! INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+! BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+! DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
+! OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
+! OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
+! OF THE POSSIBILITY OF SUCH DAMAGE.
+!
+!==================================================================================
+! smcProps.f90
+!
+! PURPOSE:
+!  Test propagation scheme stability for spherical multiple-cell (SMC) grid
+!
+! REVISION HISTORY:
+!
+! J.G. Li; Met Office; Aug-2007; Version:0.1
+!  Initial code development and testing at Met Office
+!
+! J.G. Li; Met Office; Nov-2008 to Apr-2014; Version:0.2
+!  Adaptations for new Met Office grid configurations
+!
+! A. Saulter; Met Office; May-2020; Version:1.0
+!  Further adaptations for generic grids; code prepared for initial release on 
+!  github
+!
+!==================================================================================
 
+!!  This module is a common block similar in all AFT Model programs and is
+!!  written in FORTRAN 90.
+!!                   J G Li   26 Oct 2000
                     
     MODULE Constants
        IMPLICIT NONE
 
 ! Parameters fixed in the program
-       INTEGER,PARAMETER:: NCL=900000, NFC=900000, NBDY=256, NDIR=36
+       INTEGER,PARAMETER:: NCL=1500000, NFC=1500000, NBDY=256, NDIR=36
        ! DW sets write out time, 3-hourly
        ! NTSM sets length of run in hours
-       INTEGER,PARAMETER:: DW=3, NTSM=144/DW
+       INTEGER,PARAMETER:: DW=3, NTSM=96/DW
 
        REAL,PARAMETER:: Agu36=4.8481E-5, Frqcy=0.0625,   &
          &            Pie=3.141592654, RAD2D=180.0/Pie, D2RAD=Pie/180.0
@@ -134,7 +134,7 @@
 
        INTEGER::  icl, jcl, iuf, juf, ivf, jvf, LvR, Lvm
        REAL:: CNST, CNST1, CNST2, CNST3, CNST4, CNST5, CNST6, CNST8
-       LOGICAL:: RUNARCTIC
+       LOGICAL:: RUNARCTIC, WARNVAL
        CHARACTER*80:: FNAME, INAME, JNAME, &
        &              AFNAME, AINAME, AJNAME 
 
@@ -158,7 +158,8 @@
        ZrLON = BX0
        MRL = NLEVS
 !  DT uses input propagation step for largest cells
-       DT = PROPTS / 2.0**(NLEVS-1)
+       DT = PROPTS / 2.0**(MRL-1)
+       WRITE(6,*) " DT set as: ",DT
 
 !  Set array sizes
        ALLOCATE( YLat(-NLat2:NLat2), CSLat(-NLat2:NLat2),CCLat(-NLat2:NLat2), &
@@ -411,7 +412,8 @@
 
 !!  Specify run time steps and writeup interval
        NT=0
-       NWP= DW*INT(3600.0/DT)*MFct
+       !NWP= DW*INT(3600.0/DT)*MFct
+       NWP= DW*INT(3600.0/DT)
        NTS= NTSM*NWP 
        ! Values being used should mean write every 3-hours for a week
        WRITE(6,*) ' Run/writeup length NTS NWP=', NTS, NWP
@@ -483,6 +485,7 @@
        WRITE(UNIT=16,FMT="(1x,' Run time date ',A10,2x,A10)") CTime, CDate
 
        WRITE(UNIT=16,FMT='(1x," Size-1 Units DLON DLAT = ",2f14.10)')  DLON, DLAT
+       WRITE(UNIT=16,FMT='(1x," Number of levels       = ",i8)')  NLEVS
        WRITE(UNIT=16,FMT='(1x," Equatorial PoLat PoLon = ",2f8.2)')  PoLat, PoLon
        WRITE(UNIT=16,FMT='(1x," Standard grid ZrLatLon = ",2f9.5)')  ZrLat, ZrLon
        WRITE(UNIT=16,FMT='(1x," Angular speed Eq Agu36 = ",ES12.3)') Agu36
@@ -685,11 +688,13 @@
           !&    (MOD(NT+MFct,NWP) .eq. 0) .OR. (NT+MFct .eq. NWP/4) )  THEN
           !  Output tracer concentration if at selected writeup time steps
           IF(MOD(NT+MFct,NWP) .eq. 0) THEN
-             write(FL9NM(3:7), FMT='(i5)' )  10000+((NT+MFct)/INT(3600.0/DT))
+             !write(FL9NM(3:7), FMT='(i5)' )  10000+((NT+MFct)/(INT(3600.0/DT)*MFct))
+             write(FL9NM(3:7), FMT='(i5)' )  10000+(NT+MFct)/INT(3600.0/DT)
              OPEN(UNIT=26, FILE=FL9NM, STATUS='NEW',IOSTAT=nn)
              IF(nn /= 0) PRINT*,' File FL9NM was not opened! '
              WRITE(UNIT=6,FMT='(2x,"NT= ",i6,3x,A9)') NT+MFct,FL9NM
 
+             WARNVAL = .FALSE.
              ii=0
              DO i=1, NC
                CTT=0.0
@@ -698,13 +703,18 @@
                ENDDO
                C(i)=CTT*DThta
                D(i) = SIGN( SQRT( ABS(C(i)) ), C(i) )
-               !!   Filter very small C(n) value so it is greater than E-36
+               !!  Filter very small C(n) value so it is greater than E-36
                IF( Abs(D(i)) .LT. 1.0E-36 ) THEN
                   D(i)=SIGN(1.0E-36, C(i))
+               ENDIF
+               !!  Check for large values which may be a sign of instability
+               IF( Abs(D(i)) .GT. 100.0 ) THEN
+                  WARNVAL = .TRUE.
                ENDIF
              ENDDO
 
              !    All cells are saved 
+             IF(WARNVAL) WRITE(6,*) "WARNING: Absolute values >100.0 in SWH array"
              WRITE(UNIT=26, FMT='(2x,2i8)' )  NT+MFct, NC
              WRITE(UNIT=26, FMT=7113)  (D(n),  n=1, NC)
              CLOSE(26)

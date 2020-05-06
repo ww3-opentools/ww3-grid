@@ -2,7 +2,6 @@ Working notes for development
 
 07/04/2020
  - supply a correction/removal list to correctLandBathy, for more control over which lakes to include or otherwise
- - add method to work with sub-domain of global grid
  - run_gebco to use parser options instead of text arguments
 
 

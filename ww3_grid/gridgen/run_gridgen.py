@@ -1,4 +1,45 @@
-# run gridgen actions based on user inputs
+#==================================================================================
+# BSD License
+#
+# Copyright (c)2020, ww3-opentools developers, all rights reserved
+#
+# Redistribution and use in source and binary forms, with or without modification,
+# are permitted provided that the following conditions are met:
+#
+# * Redistributions of source code must retain the above copyright notice, this
+#   list of conditions and the following disclaimer.
+#
+# * Redistributions in binary form must reproduce the above copyright notice, this
+#  list of conditions and the following disclaimer in the documentation and/or
+#  other materials provided with the distribution.
+#
+# * Neither the name of the copyright holder nor the names of its
+#  contributors may be used to endorse or promote products derived from this
+#  software without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+# ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+# IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
+# INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+# BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+# DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
+# OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
+# OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
+# OF THE POSSIBILITY OF SUCH DAMAGE.
+#
+#==================================================================================
+# run_gridgen.py
+#
+# PURPOSE:
+#  Runs gridgen.py functions based on user defined configuration file inputs
+#
+# REVISION HISTORY:
+#
+# A. Saulter; Met Office; May-2020; Version: 1.0
+#  Code prepared for initial release on github
+#
+#==================================================================================
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -6,6 +47,122 @@ import configparser as cfg
 import sys
 
 import gridgen as grd
+
+
+def readConfigMark(config, procname):
+    '''Reads in relevant content of config file for cell marking actions
+       This is called as a separate function so that mark actions can be
+       composited'''
+
+    # place mark actions into a list
+    cfginfo = {'action':'mark',
+               'marklist':[]}
+    if config.get(procname,'action').lower() == 'markmulti':
+        for markproc in config.get(procname,'marknames').split(','):
+            cfginfo['marklist'].append(markproc.replace(' ',''))
+    else:
+        cfginfo['marklist'].append(procname)
+
+    # run through list and append actions according to type
+    for proc in cfginfo['marklist']:
+
+        # mark cells below a given depth
+        if config.get(proc,'action').lower() == 'markdepths':
+            # set defaults
+            mrkinfo = {'action':'markdepths',
+                       'workdir':'.',
+                       'basefile':'smcGrid_basegrid.nc',
+                       'name':'smcGrid',
+                       'label':'newmark',
+                       'markertype':'dry',
+                       'depthlim':5.0}
+            # set user options
+            if config.has_option(proc,'workdir'):
+                mrkinfo['workdir'] = config.get(proc,'workdir')
+            if config.has_option(proc,'basefile'):
+                mrkinfo['basefile'] = config.get(proc,'basefile')
+            if config.has_option(proc,'name'):
+                mrkinfo['name'] = config.get(proc,'name')
+            if config.has_option(proc,'label'):
+                mrkinfo['label'] = config.get(proc,'label')
+            if config.has_option(proc,'markertype'):
+                mrkinfo['markertype'] = config.get(proc,'markertype')
+            if config.has_option(proc,'depthlim'):
+                mrkinfo['depthlim'] = np.float(config.get(proc,'depthlim'))
+
+        # mark cells for a specific region (and depth)
+        if config.get(proc,'action').lower() == 'markregion':
+            # set defaults
+            mrkinfo = {'action':'markregion',
+                       'workdir':'.',
+                       'basefile':'smcGrid_basegrid.nc',
+                       'name':'smcGrid',
+                       'label':'newmark',
+                       'markertype':'tier',
+                       'extents':[0.0,-60.0,360.0,73.0],
+                       'depthlim':None}
+            # set user options
+            if config.has_option(proc,'workdir'):
+                mrkinfo['workdir'] = config.get(proc,'workdir')
+            if config.has_option(proc,'basefile'):
+                mrkinfo['basefile'] = config.get(proc,'basefile')
+            if config.has_option(proc,'name'):
+                mrkinfo['name'] = config.get(proc,'name')
+            if config.has_option(proc,'label'):
+                mrkinfo['label'] = config.get(proc,'label')
+            if config.has_option(proc,'markertype'):
+                mrkinfo['markertype'] = config.get(proc,'markertype')
+            if config.has_option(proc,'extents'):
+                extentstr = config.get(proc,'extents').split(',')
+                mrkinfo['extents'] = [np.float(extentstr[0]), np.float(extentstr[1]),
+                                      np.float(extentstr[2]), np.float(extentstr[3])]
+            if config.has_option(proc,'depthlim'):
+                if config.get(proc,'depthlim').lower() != 'none':
+                    mrkinfo['depthlim'] = np.float(config.get(proc,'depthlim'))
+
+        # unmark tier cells (set to wet/dry) for a specific region
+        if config.get(proc,'action').lower() == 'unmark':
+            # set defaults
+            mrkinfo = {'action':'unmark',
+                       'workdir':'.',
+                       'basefile':'smcGrid_basegrid.nc',
+                       'name':'smcGrid',
+                       'label':'newmark',
+                       'markertype':'tier',
+                       'extents':[0.0,-60.0,360.0,73.0],
+                       'osbox':False,
+                       'thruzero':False,
+                       'deldry':False}
+            # set user options
+            if config.has_option(proc,'workdir'):
+                mrkinfo['workdir'] = config.get(proc,'workdir')
+            if config.has_option(proc,'basefile'):
+                mrkinfo['basefile'] = config.get(proc,'basefile')
+            if config.has_option(proc,'name'):
+                mrkinfo['name'] = config.get(proc,'name')
+            if config.has_option(proc,'label'):
+                mrkinfo['label'] = config.get(proc,'label')
+            if config.has_option(proc,'markertype'):
+                mrkinfo['markertype'] = config.get(proc,'markertype')
+            if config.has_option(proc,'extents'):
+                extentstr = config.get(proc,'extents').split(',')
+                mrkinfo['extents'] = [np.float(extentstr[0]), np.float(extentstr[1]),
+                                      np.float(extentstr[2]), np.float(extentstr[3])]
+            if config.has_option(proc,'osbox'):
+                print(config.get(proc,'osbox'))
+                if config.get(proc,'osbox').lower() == 'true':
+                    mrkinfo['osbox'] = True
+            if config.has_option(proc,'thruzero'):
+                if config.get(proc,'thruzero').lower() == 'true':
+                    mrkinfo['thruzero'] = True
+            if config.has_option(proc,'deldry'):
+                if config.get(proc,'deldry').lower() == 'true':
+                    mrkinfo['deldry'] = True
+
+        cfginfo[proc] = mrkinfo
+
+    return cfginfo
+
 
 def readConfig(procname, cfgfile):
     '''Reads in relevant content of config file according to action'''
@@ -181,6 +338,11 @@ def readConfig(procname, cfgfile):
         if config.has_option(procname,'arclat'):
             cfginfo['arclat'] = np.float(config.get(procname,'arclat'))
 
+    # cell mark actions
+    marklist = ['markmulti','markdepths','markregion','marklandpc','unmark']
+    if config.get(procname,'action').lower() in marklist:
+        cfginfo = readConfigMark(config, procname)
+
     return cfginfo        
 
 
@@ -204,11 +366,50 @@ def runGridgen(cfginfo):
                                     bathytype=cfginfo['bathytype'],
                                     getpland=cfginfo['getpcland'],
                                     setadj=cfginfo['setadj'])
-        # write staging file
+        # write base grid file
         basefile = basesmc.writeNC(writedir=cfginfo['workdir'])
-        print('Data written to %s' %basefile)
         # visualize the grid
         grd.plotGridsmc(basesmc, latlon=False)
+
+    elif cfginfo['action'] == 'mark':
+        # mark actions run through a loop to allow composite actions
+        for lp, proc in enumerate(cfginfo['marklist']):
+            if lp == 0:
+                # load the parent grid
+                print('')
+                print('*** Loading SMC base grid')
+                basefile = cfginfo[proc]['workdir'] + '/' + cfginfo[proc]['basefile']
+                basesmc = grd.loadNCsmc(basefile)
+                print('')
+                print('*** Marking cells for SMC grid')
+            # marking actions
+            if cfginfo[proc]['action'] == 'markdepths':
+                basesmc.markDepths(cfginfo[proc]['depthlim'],
+                                   marker=cfginfo[proc]['markertype'])
+            elif cfginfo[proc]['action'] == 'markregion':
+                basesmc.markRegion(cfginfo[proc]['extents'][0],
+                                   cfginfo[proc]['extents'][1],
+                                   cfginfo[proc]['extents'][2],
+                                   cfginfo[proc]['extents'][3],
+                                   marker=cfginfo[proc]['markertype'],
+                                   depthlim=cfginfo[proc]['depthlim'])
+            elif cfginfo[proc]['action'] == 'unmark':
+                basesmc.unmarkCells(marker=cfginfo[proc]['markertype'],
+                                   box=[cfginfo[proc]['extents'][0],
+                                        cfginfo[proc]['extents'][1],
+                                        cfginfo[proc]['extents'][2],
+                                        cfginfo[proc]['extents'][3]],
+                                   osbox=cfginfo[proc]['osbox'],
+                                   thruzero=cfginfo[proc]['thruzero'])
+                # deldry option removes dry cells as part of unmark action
+                if cfginfo[proc]['deldry']:
+                    basesmc.delCells(celltype='dry')
+            if lp == len(cfginfo['marklist'])-1:
+                # write the marked grid after final marking action
+                basesmc.label = cfginfo[proc]['label']
+                markfile = basesmc.writeNC(writedir=cfginfo[proc]['workdir'])
+                # visualise the new marked grid
+                grd.plotGridsmc(basesmc)
 
     elif cfginfo['action'] == 'tiergen':
         # load the parent grid
@@ -232,7 +433,6 @@ def runGridgen(cfginfo):
                                     deldry=cfginfo['deldry'])
         # save the new tier grid
         tierfile = tiersmc.writeNC(writedir=cfginfo['workdir'])
-        print('Data written to %s' %tierfile)
         # visualise the new tier grid
         grd.plotGridsmc(tiersmc)
 
@@ -255,9 +455,8 @@ def runGridgen(cfginfo):
                                     cfginfo['bathyfile'],
                                     tiernext=cfginfo['tiernext'])
         combbaset.label = cfginfo['label']
-        # save the grid
+        # save the combined grid
         combbasetfile = combbaset.writeNC(writedir=cfginfo['workdir'])
-        print('Data written to %s' %combbasetfile)
         # visualise the grid
         grd.plotGridsmc(combbaset, latlon=False)
 
@@ -270,7 +469,7 @@ def runGridgen(cfginfo):
         # remove any dry cells from the grid
         print('')
         print('*** Removing dry cells')
-        combsmc.delDryCells(celltype='alldry')
+        combsmc.delCells(celltype='alldry')
         # visualize the grid
         grd.plotGridsmc(combsmc, latlon=False)
         # write out ww3 format files

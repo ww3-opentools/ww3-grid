@@ -1,31 +1,50 @@
-"""
-#;;
-#;  Adapted from idl script for PVWave  12 Sept 2005
-#;  It reads MFT model output files and plots contours of the
-#;  tracer concentration in a ps file.
-#;  S4R sterographic projection.  JGLi30Jun2011
-#;  SMC625 global part only.      JGLi12Dec2011
-#;  SMC625 SWH plot from WW3 text files.  JGLi16Feb2012
-#;  SMC625 full grid and Arc/Atl.   JGLi20Jun2012
-#;  SMC625 30 Frequency bin SWH plot from SMC625Tx.  JGLi02Oct2012
-#;  SMC6125 full grid spectral test.  JGLi08Jan2013
-#;  Input yymm from file.                      JGLi23Oct2013
-#;  Adapted for G50SMC grid swh.               JGLi19Nov2013
-#;  Extended to include Arctic.                JGLi11Feb2014
-#;  Simplified to use readproj.                JGLi14Nov2014
-#;  Adapted for CMA SMC6125 grid.              JGLi30Jul2018
-##  Converted into Python.                     JGLi20Dec2018
-##  Adapted for SMC36125 grid swh plot.        JGLi04Jan2019
-##  Use PolyCollection to draw swh plot.       JGLi30Jan2019
-##  Adapted for SMC61250 grid swh plot.        JGLi22Feb2019
-##  Adapted for SMC61250 propagation test.     JGLi26Feb2019
-##  Use swhglobl and swhlocal to plot.         JGLi12Mar2019
-##  Adapted for Andy6125 model test.           JGLi14Mar2019
-##  Adapted for generic SMC grids              ASaulter30Apr2020
-##
-"""
+#==================================================================================
+# BSD License
+#
+# Copyright (c)2018-2020, ww3-opentools developers, all rights reserved
+#
+# Redistribution and use in source and binary forms, with or without modification,
+# are permitted provided that the following conditions are met:
+#
+# * Redistributions of source code must retain the above copyright notice, this
+#   list of conditions and the following disclaimer.
+#
+# * Redistributions in binary form must reproduce the above copyright notice, this
+#  list of conditions and the following disclaimer in the documentation and/or
+#  other materials provided with the distribution.
+#
+# * Neither the name of the copyright holder nor the names of its
+#  contributors may be used to endorse or promote products derived from this
+#  software without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+# ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+# IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
+# INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+# BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+# DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
+# OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
+# OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
+# OF THE POSSIBILITY OF SUCH DAMAGE.
+#
+#==================================================================================
+# run_plotSMCprops.py
+#
+# PURPOSE:
+#  Runs plotSMCgrid.py functions, based on namelist file inputs, for plotting 
+#  results of SMC grid propagation tests
+#
+# REVISION HISTORY:
+#
+# J.G. Li; Met Office; Dec-2018; Version:0.1
+#  Initial functions development and testing at Met Office
+#
+# A. Saulter; Met Office; May-2020; Version:1.0
+#  Code library prepared for initial release on github
+#
+#==================================================================================
 
-##  Import relevant modules and functions
 import numpy as np
 import pandas as pd
 from matplotlib.collections import PolyCollection
@@ -204,7 +223,7 @@ def pltProps(Wrkdir, ModlName, Cel_file='ww3Cels.dat',
 
         # Convert time step for output file
         ntsp='NTS = %5d' % (mt)
-        thrs='T = %d' % (np.int(cfiles[nn][2:7])-10000) 
+        thrs='T = %d hours' % (np.int(cfiles[nn][2:7])-10000) 
 
         # Call function to draw the swh plot.
         figfl = Flsdir + '/Hs' + cfiles[nn][2:7] + figtype

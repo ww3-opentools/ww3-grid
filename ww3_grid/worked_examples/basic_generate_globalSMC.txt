@@ -6,21 +6,39 @@
 #-  A-including an arctic extension (deals with singularity at the North Pole)
 
 
+#### 
+##- WORKING DIRECTORY STRUCTURE
+
+#- In the example below 3 data directories are used; this does not have to be followed strictly (all
+#-  the path names can be controlled in configuration files), but helped me organise the data sensibly:
+#-  /[PATHTOBATHYMETRYDIRECTORY]: where the raw bathymetry data underpinning the grid is stored
+#-  /[PATHTOWW3GRIDDIRECTORY]/grid_netCDF: where WAVEWATCH grid netCDF component files are stored 
+#-                                         during the grid generation process
+#-  /[PATHTOWW3GRIDDIRECTORY]/[CONFIGNAME]: where the WAVEWATCH III grid text files, metadata and test
+#-                                          data are stored; I also put .cfg files into this directory
+#-                                          for audit trail purposes
+#- !!!!AS STANDS, THESE DIRECTORIES NEED TO BE SET UP MANUALLY BEFORE RUNNING THIS EXAMPLE
+
+
 ####
 ##- GRID PREPARATION
 
-#- First step was to generate a background global grid at N512, in this case from a GEBCO 2014 bathymetry.
+#- First step was to generate a background global grid at N256, in this case from a GEBCO 2014 bathymetry.
+#-  (download link given at https://www.gebco.net/data_and_products/historical_data_sets/ 
+#-   https://www.bodc.ac.uk/data/open_download/gebco/GEBCO_30SEC/zip/)
 #-  The method uses the scripts in the 'reduce_gebco' directory and I've taken the 'interpolate' and 'correct'
 #-  steps separately in order to maximise control of the correction step.
 
 #- For the interpolate step, the following was added to a new 'gebco_reduce.cfg' file:
 
 
-## 'interpolate' action; parameters as follows:
+## 'interpolate' action; return a bathymetry interpolated to a defined new grid
+#   parameters as follows:
 #   dx           - float, cell resolution in x (longitude) dimension for the new grid
 #   dy           - float, cell resolution in y (latitude) dimension for the new grid
 #   depthmin     - float, minimum depth for land-sea cut-off (negative for point in sea)
-#   cutout       - extents for a cutout sub-domain from global
+#   region       - None/string, names for region with extents below
+#   extents      - comma delimited floats, domain corners as SW-lon, SW-lat, NE-lon, NE-lat
 #   pltchk       - true/false, show results of processing using matplotlib
 #   correctlakes - true/false, apply the lake and below MSL land corrections
 #   gebcofile    - string, the GEBCO bathy file
@@ -29,19 +47,20 @@
 dx = 0.703125
 dy = 0.46875 
 depthmin = -1.0
-cutout = None
+region = None
+extents = None
 pltchk = True
 correctlakes = False
 gebcofile = GEBCO_2014_2D.nc
-datadir = /project/ofrd/bathymetry/GEBCO_2014
+datadir = /[PATHTOBATHYMETRYDIRECTORY]
 
 
 #-  and the reduced file at N256 is generated at 
-#-  /project/ofrd/bathymetry/GEBCO_2014/GEBCO_2014_2D_interpolated_0d7031by0d4687.nc
+#-  /[PATHTOBATHYMETRYDIRECTORY]/GEBCO_interpolated_0d7031by0d4687.nc
 #-  using the script call as follows:
 
 
-python run_gebco_reduce.py interpolate gebco_reduce.cfg
+python run_gebco_reduce.py interpolate /[PATHTOWW3GRIDDIRECTORY]/GS256A/gebco_reduce.cfg
 
 
 #- At this point the new bathymetry has an incorrect representation of the Caspian Sea and other large lakes,
@@ -49,7 +68,8 @@ python run_gebco_reduce.py interpolate gebco_reduce.cfg
 #-   the Caspian Sea, by adding the following to gebco_reduce.cfg
 
 
-## 'correct' action; parameters as follows:
+## 'correct' action; update bathymetry to correct elevations for lakes and remove land below mean-sea level
+#   parameters as follows:
 #   depthmin     - float, minimum depth for land-sea cut-off
 #   removesmall  - None/integer, (square) side size for small water bodies to be removed
 #   caspianonly  - true/false, only add CaspianSea as a lake, this may be preferable for large scale global applications
@@ -61,14 +81,14 @@ depthmin = -1.0
 removesmall = 2
 caspianonly = True
 pltchk = True
-ncfile = GEBCO_2014_2D_interpolated_0d7031by0d4687.nc
-datadir = /project/ofrd/bathymetry/GEBCO_2014
+ncfile = GEBCO_interpolated_0d7031by0d4687.nc
+datadir = /[PATHTOBATHYMETRYDIRECTORY]
 
 
 #-  and running the script using:
 
 
-python run_gebco_reduce.py correct gebco_reduce.cfg
+python run_gebco_reduce.py correct /[PATHTOWW3GRIDDIRECTORY]/GS256A/gebco_reduce.cfg
 
 
 #-  It is probably worth noting that the 'correct' step will modify the interpolated netCDF bathy file in
@@ -88,7 +108,8 @@ python run_gebco_reduce.py correct gebco_reduce.cfg
 #- named 'basegrid', defining a 'smcbase' action:
 
 
-## 'smcbase' action; parameters as follows:
+## 'smcbase' action; generate an initial SMC grid at base resolution
+#   parameters as follows:
 #   workdir      - string, location of working directory for grid netCDF file read/write
 #   bathyfile    - string, location of underpinning bathymetry netCDF file
 #   name         - string, generic name for grid collection
@@ -108,8 +129,8 @@ python run_gebco_reduce.py correct gebco_reduce.cfg
 #                   should be set to True)
 [basegrid]
 action = smcbase
-workdir = /project/ofrd/waves/wavegrids/global/grid_netCDF
-bathyfile = /project/ofrd/bathymetry/GEBCO_2014/GEBCO_2014_2D_interpolated_0d7031by0d4687.nc
+workdir = /[PATHTOWW3GRIDDIRECTORY]/grid_netCDF
+bathyfile = /[PATHTOBATHYMETRYDIRECTORY]/GEBCO_interpolated_0d7031by0d4687.nc
 name = GW2p0
 label = GS256A
 extents = 0.0,-90.0,360.0,90.0
@@ -125,11 +146,11 @@ setadj = True
 
 
 #- When run, this configuration produces a new netCDF file containing the data for the SMC base grid, in
-#-  a file at [workdir]/[name]_[label].nc. The action was made by calling the 'run_gridgen.py' script as
+#-  a file at /[PATHTOWW3GRIDDIRECTORY]/grid_netCDF/[name]_[label].nc. The action was made by calling the 'run_gridgen.py' script as
 #-  follows:
 
 
-python run_gridgen.py basegrid gridgen.cfg
+python run_gridgen.py basegrid /[PATHTOWW3GRIDDIRECTORY]/GS256A/gridgen.cfg
 
 
 ####
@@ -146,7 +167,8 @@ python run_gridgen.py basegrid gridgen.cfg
 #-  my 'gridgen.cfg' configuration file:
 
 
-## 'writeWW3' action; parameters as follows:
+## 'writeWW3' action; write cell data and associated grid metadata to WAVEWATCH III text format files
+#   parameters as follows:
 #   workdir       - string, location of working directory for grid netCDF file read/write
 #   gridfile      - string, name of the SMC grid netCDF file (assumed in workdir)
 #   writedir      - string, location of directory to write WW3 format files
@@ -158,9 +180,9 @@ python run_gridgen.py basegrid gridgen.cfg
 #   arclat        - float, cut-off latitiude used to define arctic region (default 86.4, minimum 84.0)
 [writeWW3]
 action = writeWW3
-workdir = /project/ofrd/waves/wavegrids/global/grid_netCDF
+workdir = /[PATHTOWW3GRIDDIRECTORY]/grid_netCDF
 gridfile = GW2p0_GS256A.nc
-writedir = /project/ofrd/waves/wavegrids/global/GS256A
+writedir = /[PATHTOWW3GRIDDIRECTORY]/GS256A
 mindepth = None
 writemindepth = False
 arctic = True
@@ -170,7 +192,7 @@ arclat = 86.4
 #- and ran the script as follows:
 
 
-python run_gridgen.py writeWW3 gridgen.cfg
+python run_gridgen.py writeWW3 /[PATHTOWW3GRIDDIRECTORY]/GS256A/gridgen.cfg
 
 
 #- The next step is to generate the cell-face arrays used to link cells in the SMC grid's propagation scheme.
@@ -180,13 +202,13 @@ python run_gridgen.py writeWW3 gridgen.cfg
 #-  extension. So the script needs to be run twice using both standard and arctic namelists:
 
 
-./run_genSides.sh /project/ofrd/waves/wavegrids/global/GS256A smcGrid.nml
-./run_genSides.sh /project/ofrd/waves/wavegrids/global/GS256A arcGrid.nml
+./run_genSides.sh /[PATHTOWW3GRIDDIRECTORY]/GS256A smcGrid.nml
+./run_genSides.sh /[PATHTOWW3GRIDDIRECTORY]/GS256A arcGrid.nml
 
 
 #- The result from these runs is to produce the files ww3GISide.dat,ww3GJSide.dat and, for the arctic grid
 #-  ww3AISide.dat,ww3AJSide.dat
-#- In principle all the necessary files and metadata to run this grid with WAVEWATCH III have not been generated!!
+#- In principle all the necessary files and metadata to run this grid with WAVEWATCH III have now been generated!!
 
 ww3Cels.dat  ww3GISide.dat  ww3GJSide.dat  ww3Obstr.dat [main part of the grid**]
 ww3AISide.dat  ww3AJSide.dat  ww3ArcCels.dat            [arctic extension for the grid]  
@@ -204,7 +226,7 @@ smc.ww3.grid_def                                        [data for input to Met O
 #- An initial view of the SMC grid can be made by running the script 'run_plotSMCgrid.py' from 'smc_test' as follows:
 
 
-python run_plotSMCgrid.py GS256A /project/ofrd/waves/wavegrids/global/GS256A
+python run_plotSMCgrid.py GS256A /[PATHTOWW3GRIDDIRECTORY]/GS256A
 
 
 #-  where the 'GS256L2' (first) variable provided to the script is the name I want to give this model configuration.
@@ -223,7 +245,7 @@ python run_plotSMCgrid.py GS256A /project/ofrd/waves/wavegrids/global/GS256A
 #-  'run_smcProps.sh' is used to invoke the fortran routine smcProps.f90 (the necessary executable can be built using 
 #-  'make_smcProps.sh')From 'smc_test' the propagation script is run as:
 
-./run_smcProps.sh /project/ofrd/waves/wavegrids/global/GS256A
+./run_smcProps.sh /[PATHTOWW3GRIDDIRECTORY]/GS256A
 
 
 #- NOTE: this script expects the namelist smcGrid.nml to be present in the working directory and, also, that the
@@ -237,7 +259,7 @@ python run_plotSMCgrid.py GS256A /project/ofrd/waves/wavegrids/global/GS256A
 #-  'run_plotSMCprops.py' from 'smc_test' as follows:
 
 
-python run_plotSMCprops.py GS256A /project/ofrd/waves/wavegrids/global/GS256A
+python run_plotSMCprops.py GS256A /[PATHTOWW3GRIDDIRECTORY]/GS256A
 
 
 #-  where the 'GS256A' (first) variable provided to the script is the name of the model configuration.

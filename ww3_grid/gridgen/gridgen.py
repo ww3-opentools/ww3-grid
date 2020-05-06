@@ -1,4 +1,50 @@
-# library for gridgen functions
+#==================================================================================
+# BSD License
+#
+# Copyright (c)2019-2020, ww3-opentools developers, all rights reserved
+#
+# Redistribution and use in source and binary forms, with or without modification,
+# are permitted provided that the following conditions are met:
+#
+# * Redistributions of source code must retain the above copyright notice, this
+#   list of conditions and the following disclaimer.
+#
+# * Redistributions in binary form must reproduce the above copyright notice, this
+#  list of conditions and the following disclaimer in the documentation and/or
+#  other materials provided with the distribution.
+#
+# * Neither the name of the copyright holder nor the names of its
+#  contributors may be used to endorse or promote products derived from this
+#  software without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+# ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+# IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
+# INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+# BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+# DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
+# OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
+# OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
+# OF THE POSSIBILITY OF SUCH DAMAGE.
+#
+#==================================================================================
+# gridgen.py
+#
+# PURPOSE:
+#  Functions library for generating WAVEWATCH III compatible grid/bathymetry files
+#  for regular grids and spherical multiple-cell (SMC) grids
+#
+# REVISION HISTORY:
+#
+# A. Saulter; Met Office; May-2019; Version:0.1
+#  Initial code development and testing at Met Office
+#
+# A. Saulter; Met Office; May-2020; Version:1.0
+#  Code prepared for initial release on github
+#
+#==================================================================================
+
 import numpy as np
 import netCDF4 as nc
 import matplotlib.pyplot as plt
@@ -187,23 +233,31 @@ class smcGrid:
                                     pland=pland, rotated=self.rtd, 
                                     median_depth=median_depth, smc=True, setadj=setadj)
 
-    def markDepths(self, depthlim, marker='tier'):
+    def markDepths(self, depthlim, marker='tier', arclat=84.0):
         '''Marks cells shallower than given depth for tier'''
-        print('[INFO] Marking cells above depth limit %.2f m' %depthlim)
+        print('[INFO] Marking cells shallower than depth limit %.2f m as %s' %(depthlim,marker))
         if depthlim > 0.0:
             print('[WARN] Depth is set greater than zero, changing sign for depth negative convention')
             depthlim = depthlim * -1.0
         if marker.lower() == 'tier':
-            self.celldepths[(self.celldepths[:,0]>=depthlim) & (self.celldepths[:,2]==1), 2] = -1
+            # use latitude indices to ensure cells in arctic part of grid are not tiered
+            self.celldepths[(self.celldepths[:,0]>=depthlim) & (self.celldepths[:,2]==1) &
+                            (self.midcellsy[:] < arclat), 2] = -1
         elif marker.lower() == 'dry':
-            self.celldepths[self.celldepths[:,0]>=depthlim, 2] = 0
+            # use latitude indices to ensure cells in arctic part of grid are not tiered
+            self.celldepths[(self.celldepths[:,0]>=depthlim) & (self.midcellsy[:] < arclat), 2] = 0
 
     def markDrypc(self, pcdry):
         '''Marks cells with dry percentage greater than threshold as dry'''
-        self.celldepths[self.celldepths[:,1]>=pcdry, 2] = 0
+        # use latitude indices to ensure cells in arctic part of grid are not tiered
+        self.celldepths[(self.celldepths[:,1]>=pcdry) & (self.midcellsy[:] < arclat), 2] = 0
 
     def markRegion(self, xsw, ysw, xne, yne, marker='tier', depthlim=None):
         '''Marks cells in a given region for tier'''
+        if yne > 84.0:
+            print('[WARN] Provided northeast latitude >84N')
+            print('[INFO] Setting northeast latitude to 84N to avoid cell conflicts in arctic grid')
+            yne = 84.0
         print('[INFO] Setting cells in region %.2fE, %.2fN, %.2fE, %.2fN'
                 %tuple([xsw, ysw, xne, yne]) + ' to ' + marker)
         inds = np.where(((self.midcellsx[:] >= xsw) & 
@@ -212,7 +266,7 @@ class smcGrid:
                           (self.midcellsy[:] < yne)))
         if marker.lower() == 'tier':
             if depthlim is not None:
-                print('[INFO] Only marking cells above depth limit %.2f m' %depthlim)
+                print('[INFO] Only marking cells shallower than depth limit %.2f m' %depthlim)
                 if depthlim > 0.0:
                     print('[WARN] Depth is set greater than zero, changing sign for depth negative convention')
                     depthlim = depthlim * -1.0
@@ -227,7 +281,7 @@ class smcGrid:
         elif marker.lower() == 'dry':
             self.celldepths[inds, 2] = 0
 
-    def unmarkCells(self, marker='tier', box=None, osbox=True, thruzero=False):
+    def unmarkCells(self, marker='tier', box=None, osbox=False, thruzero=False):
         '''Sets marked cells to wet setting'''
         if box is not None:
             xsw = box[0]
@@ -275,18 +329,9 @@ class smcGrid:
             elif marker.lower() == 'dry':
                 self.celldepths[self.celldepths[:,2] == 0, 2] = 1
 
-    def delDryCells(self,celltype='dry'):
-        '''Remove dry cells from SMC grid arrays'''
-        self.smccells, self.midcellsx, self.midcellsy, \
-        self.cellbounds, self.celldepths = removeCells(self.smccells,
-                                                       self.midcellsx,
-                                                       self.midcellsy,
-                                                       self.cellbounds,
-                                                       self.celldepths,
-                                                       celltype=celltype)
-
-    def delTierCells(self,celltype='tier'):
-        '''Remove tier cells from SMC grid arrays'''
+    def delCells(self,celltype='dry'):
+        '''Remove dry or tier cells from SMC grid arrays,
+            options are dry, alldry, tier, alltier'''
         self.smccells, self.midcellsx, self.midcellsy, \
         self.cellbounds, self.celldepths = removeCells(self.smccells,
                                                        self.midcellsx,
@@ -362,6 +407,35 @@ def chkAdj(ind, smcbounds, altbounds=None, nexttier=False):
         mdind = np.argmin(distsw)
         if distsw[mdind] < 0.0001:
             intersects[lp] = mdind
+
+    return intersects
+
+
+def chkAdjxy(ind, cellsbox, altbox=None, nexttier=False):
+    '''Finds cells intersecting indexed cell corners'''
+
+    # corners are ordered as SW, NW, NE, SE
+    # 1st corners for box we want to test, 2nd corner for intersect to test
+    if nexttier:
+        corners = [ [[0,1],[0,3]], [[0,1],[2,1]], 
+                    [[0,3],[0,1]], [[0,3],[2,3]],
+                    [[2,3],[0,3]], [[2,3],[2,1]],
+                    [[2,1],[2,3]], [[2,1],[0,1]] ]
+        intersects = [None, None, None, None, None, None, None, None]
+    else:
+        corners = [ [[0,1],[2,1]], [[0,3],[0,1]], [[2,3],[0,3]], [[2,1],[2,3]] ]
+        intersects = [None, None, None, None]
+
+    if altbox is not None:
+        testbox = altbox
+    else:
+        testbox = smcbox
+
+    for lp, crnrs in enumerate(corners):
+        mdind = np.where((cellsbox[:,crnrs[0][0]]==testbox[:,crnrs[1][0]]) &
+                         (cellsbox[:,crnrs[0][1]]==testbox[:,crnrs[1][1]]) )
+        if np.size(mdind) > 0:
+            intersects[lp] = mdind[0][0]
 
     return intersects
 
@@ -458,6 +532,17 @@ def setCellMidsSMC(smccells, llx, lly, dx, dy):
     return midcellsx, midcellsy
 
 
+def setCellsXYbox(smccells):
+    '''Returns x-y cell corners lists for a SMC grid'''
+
+    print('[INFO] Setting cell box array for SMC grid')
+    cellsbox = np.array([smccells[:,0],smccells[:,1],
+                         smccells[:,0]+smccells[:,2],
+                         smccells[:,1]+smccells[:,3]])
+
+    return cellsbox
+
+
 def fillCells(cell_bounds, rdx, rdy, rdbathy, dlim=0.0, drymin=0.0, 
                drymax=0.99, pland=None, rotated=False, 
                median_depth=False, smc=False, setadj=False):
@@ -545,12 +630,14 @@ def fillCells(cell_bounds, rdx, rdy, rdbathy, dlim=0.0, drymin=0.0,
     # sets required additional tiering in next step
     if smc and setadj:
         print('[INFO] Checking for points adjacent to dry cells')
+        #cellsbox = setCellsXYbox(smccells)
         inds = np.where(cell_depths[:,2] == 0)
         adjdry = []
         for cnt, lp in enumerate(inds[0]):
             if np.mod(cnt, 2500) == 0:
                 print('[INFO] ... done %d points out of %d' %tuple([cnt, np.size(inds)]))
             intersects = chkAdj(lp, cell_bounds, altbounds=None)
+            #intersects = chkAdjxy(lp, cellsbox, altbox=None)
             switch_drytype = False
             if np.any(intersects is not None):
                 for chkcell in intersects:
@@ -736,7 +823,7 @@ def createBasesmc(bathyfile, extents, dx, dy,
                             tcells = tcells + 1
     print('[INFO] %d cells found' %tcells)
 
-    basesmc.delDryCells()
+    basesmc.delCells(celltype='dry')
 
     return basesmc
 
@@ -794,7 +881,7 @@ def createTiersmc(bathyfile, smcobj,
     # remove dry cells from the new arrays
     # dont do this for now as want to run cell checking in the join function
     if deldry:
-        smctier.delDryCells()
+        smctier.delCells(celltype='dry')
  
     return smctier
 
@@ -809,7 +896,7 @@ def joinTiersmc(basesmc, smctier, bathyfile, bathytype='gebco', tiernext=True):
     print('[INFO] %d cells in tier file' %np.shape(smctier.smccells)[0])
 
     # remove cells marked for tiering from the base arrays
-    newsmc.delTierCells(celltype='alltier')
+    newsmc.delCells(celltype='alltier')
     print('[INFO] %d cells in new base file' %np.shape(newsmc.smccells)[0])
 
     # run checks on cells to add additional tiered cells next to dry land
@@ -874,13 +961,13 @@ def joinTiersmc(basesmc, smctier, bathyfile, bathytype='gebco', tiernext=True):
     # as already marked as not for tiering in previous level
     #plotGridsmc(subsmc)
     #subsmc.unmarkCells(marker='tier')
-    #subsmc.delDryCells()
+    #subsmc.delCells(celltype='dry')
     #plotGridsmc(subsmc)
 
     # now check for any jumps this may have caused???
 
     # remove new cells marked for subtiering from the base arrays
-    newsmc.delTierCells(celltype='alltier')
+    newsmc.delCells(celltype='alltier')
     print('[INFO] %d cells in new base file' %np.shape(newsmc.smccells)[0])
     
     # update new object metadata using smctier
@@ -908,7 +995,7 @@ def joinTiersmc(basesmc, smctier, bathyfile, bathytype='gebco', tiernext=True):
     newsmc.celldepths = np.concatenate([newsmc.celldepths, subsmc.celldepths])
 
     # remove dry cells from the tier array - no longer needed
-    smctier.delDryCells()
+    smctier.delCells(celltype='dry')
 
     # append the new data to the original arrays
     newsmc.smccells = np.concatenate([newsmc.smccells, smctier.smccells])
@@ -1286,7 +1373,7 @@ def writeWW3smc(smccells, celldepths, ntiers,
     # write info to metadata file
 
     # calculate limits on CFL and 2nd order swell age - based on largest smc cell size
-    maxlat  = np.min([(lly / llscale) + np.float(ny) * (dy / ldscale), 60.0])
+    maxlat  = np.min([np.abs((lly / llscale) + np.float(ny) * (dy / ldscale)), 60.0])
     minlon  = 1853.0 * 60.0 * (2.0**(ntiers-1) * dx / ldscale) * np.cos(np.pi*maxlat/180.0)
     maxcg   = 1.4 * 9.81 * 25.0 / (4.0 * np.pi)
     cflstep = minlon / maxcg
@@ -1374,7 +1461,7 @@ def writeWW3smc(smccells, celldepths, ntiers,
                   'm at latitude %.3f' %maxlat +' degrees\n')
         inp.write('! CFL minimum timestep (needs rounding down): %i' %cflstep + \
                   ' seconds\n')
-        inp.write('! Estimated maximum swell age for 24 direction spectrum: %i' %sagemax \
+        inp.write('! Estimated maximum swell age for 36 direction spectrum: %i' %sagemax \
                   +' seconds\n')
         inp.write('! Minimum depth set for model at %f' %mindepth + 'm\n')
         if rtd:
@@ -1634,7 +1721,9 @@ def writeNCsmc(smcobj, writedir='.', filename=None):
         ncvar[:] = smcobj.ny
 
     ncfile = writedir+'/'+filename
-    return ncfile
+    print('[INFO] Data written to %s' %ncfile)
+
+    return
 
 
 ##--- visualization

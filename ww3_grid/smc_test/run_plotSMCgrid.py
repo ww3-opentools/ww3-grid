@@ -1,33 +1,49 @@
-"""
-##
-##  It reads cell files and uses own projection to draw 
-##  the SMC grid. Projected polygons are collected into 
-##  vert variables for grid and subsequent swh plots. 
-##
-#;  First created: For 4 views     J G Li   26 Nov 2008
-#;  Modified for Color grids       J G Li   26 Aug 2009
-#;  Adapted for 25km SMC grids     J G Li    3 Feb 2010
-#;  Updated G25SMC-12c grids.      J G Li   25 May 2011
-#;  Sterographic projection nR.    J G Li   30 Jun 2011
-#;  Adapted for G50SMC grid.       J G Li   19 Aug 2011
-#;  Extended to fill the Arctic.   J G Li    5 Oct 2011
-#;  Rectify polar cell position.   J G Li   25 Oct 2011
-#;  Simplify with readcell and steromap.  JGLi12Nov2014
-##
-##  Converted into a Python function.     JGLi05Dec2018
-##  Save ELat/Lon and sx/yc in file.      JGLi11Dec2018
-##  Add color map and draw color bar.     JGLi14Dec2018
-##  Adapted for SMC36125 grid plot.       JGLi03Jan2019
-##  Import resource and set stacksize.    JGLi07Jan2019
-##  Use polycollections for two plots.    JGLi30Jan2019
-##  Adapted for SMC61250 global grid.     JGLi18Feb2019
-##  Adapted for SMC61250 global grid.     JGLi18Feb2019
-##  Adapted for Andy's SMC6125  grid.     JGLi12Mar2019
-##  Adapted for generic SMC grids         ASaulter30Apr2020
-##
-"""
-
-##  Import relevant modules and functions
+#==================================================================================
+# BSD License
+#
+# Copyright (c)2018-2020, ww3-opentools developers, all rights reserved
+#
+# Redistribution and use in source and binary forms, with or without modification,
+# are permitted provided that the following conditions are met:
+#
+# * Redistributions of source code must retain the above copyright notice, this
+#   list of conditions and the following disclaimer.
+#
+# * Redistributions in binary form must reproduce the above copyright notice, this
+#  list of conditions and the following disclaimer in the documentation and/or
+#  other materials provided with the distribution.
+#
+# * Neither the name of the copyright holder nor the names of its
+#  contributors may be used to endorse or promote products derived from this
+#  software without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+# ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+# IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
+# INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+# BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+# DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
+# OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
+# OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
+# OF THE POSSIBILITY OF SUCH DAMAGE.
+#
+#==================================================================================
+# run_plotSMCgrid.py
+#
+# PURPOSE:
+#  Runs plotSMCgrid.py functions, based on namelist file inputs, for plotting grid 
+#  mesh
+#
+# REVISION HISTORY:
+#
+# J.G. Li; Met Office; Dec-2018; Version:0.1
+#  Initial functions development and testing at Met Office
+#
+# A. Saulter; Met Office; May-2020; Version:1.0
+#  Code library prepared for initial release on github
+#
+#==================================================================================
 
 import numpy as np
 import matplotlib.pyplot as plt

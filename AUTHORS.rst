@@ -2,11 +2,9 @@
 Credits
 =======
 
-Contributors
-------------
-
-Tom Durrant
-Andy Saulter
-Chris Bunney 
-JianGuo Li
-
+Developers
+----------
+* Tom Durrant, Oceanum
+* Andy Saulter, Met Office
+* Jian-Guo Li, Met Office
+* Chris Bunney, Met Office 

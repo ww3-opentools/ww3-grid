@@ -1,19 +1,57 @@
-!  This module is a common block similar in all AFT Model programs and is
-!  written in FORTRAN 90.
-!                     J G Li   26 Oct 2000
-!! Adapted for multiple cell 2D advection tests using UNO schemes.
-!!                    J G Li    8 Aug 2007
-!! Adapted for global multiple cell grid   J G Li   12 Nov 2007
-!! Modified for SMC extended over Arctic Ocean  J G Li   26 Nov 2008
-!! Adapted for multi-resolution UK3 to Global 25km grid  J G Li   8 Feb 2010 
-!! Modified to add minimum y-size in V-flux array.       J G Li  16 Feb 2010 
-!! Adapted for 6-25km global ocean SMC grid.  J G Li   22 Feb 2010
-!! Modified to use new rules on second cell selection.  J G Li   26 Feb 2010 
-!! Modified for SMC625 grid global part only.   J G Li   12 Dec 2011 
-!! Restore second cell selection by one face end equal.   JGLi28Feb2012 
-!! Modified to use new cell count line for SMC625 model.  JGLi01Oct2012 
-!! Adapted for SMC6125 grid with refined UK waters.   JGLi08Jan2013 
-!!
+!==================================================================================
+! BSD License
+!
+! Copyright (c) 2007-2020, ww3-opentools developers, all rights reserved
+!
+! Redistribution and use in source and binary forms, with or without modification,
+! are permitted provided that the following conditions are met:
+!
+! * Redistributions of source code must retain the above copyright notice, this
+!   list of conditions and the following disclaimer.
+!
+! * Redistributions in binary form must reproduce the above copyright notice, this
+!  list of conditions and the following disclaimer in the documentation and/or
+!  other materials provided with the distribution.
+!
+! * Neither the name of the copyright holder nor the names of its
+!  contributors may be used to endorse or promote products derived from this
+!  software without specific prior written permission.
+!
+! THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+! ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+! WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+! IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
+! INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+! BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+! DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
+! OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
+! OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
+! OF THE POSSIBILITY OF SUCH DAMAGE.
+!
+!==================================================================================
+! genSides.f90
+!
+! PURPOSE:
+!  Create and write cell face arrays for spherical multiple-cell (SMC) grid used 
+!   by WAVEWATCH III
+!
+! REVISION HISTORY:
+!
+! J.G. Li; Met Office; Aug-2007; Version:0.1
+!  Initial code development and testing at Met Office
+!
+! J.G. Li; Met Office; Nov-2008 to Jan-2013; Version:0.2
+!  Adaptations for new Met Office grid configurations
+!
+! A. Saulter; Met Office; May-2020; Version:1.0
+!  Further adaptations for generic grids; code prepared for initial release on 
+!  github
+!
+!==================================================================================
+
+!! Constants module is a common block similar in all AFT Model programs and is
+!!  written in FORTRAN 90.
+!!                     J G Li   26 Oct 2000
 
 MODULE Constants
    IMPLICIT NONE
@@ -22,7 +60,7 @@ MODULE Constants
    INTEGER,PARAMETER::NCL=2250000, NFC=2360000
 
 ! Variables to be used for data storage
-   INTEGER:: NU, NV, NC, N9, N8, N4, N2, N1, NLon, NLONMAX, NCMAX
+   INTEGER:: NU, NV, NC, N16, N9, N8, N4, N2, N1, NLon, NLONMAX, NCMAX
    INTEGER:: ICE(4,NCL), KG(NCL)
    INTEGER, DIMENSION(7,NFC)::  ISD
    INTEGER, DIMENSION(8,NFC)::  JSD
@@ -86,6 +124,8 @@ END MODULE Constants
          READ (9,*) NC, N1, N2, N4 
       ELSE IF (NLEVS .EQ. 4) THEN
          READ (9,*) NC, N1, N2, N4, N8 
+      ELSE IF (NLEVS .EQ. 5) THEN
+         READ (9,*) NC, N1, N2, N4, N8, N16 
       ENDIF
    ENDIF
    DO J=1,NC
@@ -130,6 +170,8 @@ END MODULE Constants
          WRITE(UNIT=16,FMT='(1x," Size 1 2 4 cell number = ",3i8)')  N1, N2, N4
       ELSE IF (NLEVS .EQ. 4) THEN
          WRITE(UNIT=16,FMT='(1x," Size 1 2 4 8 cell number = ",4i8)')  N1, N2, N4, N8
+      ELSE IF (NLEVS .EQ. 5) THEN
+         WRITE(UNIT=16,FMT='(1x," Size 1 2 4 8 16 cell number = ",5i8)')  N1, N2, N4, N8, N16
       ENDIF
       WRITE(UNIT=16,FMT='(1x," Lon/Lat grid No.s = ",3i8)')  NLon, NLat
    ENDIF
@@ -676,7 +718,7 @@ END MODULE Constants
    ENDIF
    IF(nn /= 0) PRINT*,' File ISide.d was not opened! '
       DO I=1,NU
-         WRITE(10,FMT='(2i6,i4,4i8)')  (ISD(N,I), N=1,7)
+         WRITE(10,FMT='(2i7,i5,4i8)')  (ISD(N,I), N=1,7)
       END DO
    CLOSE(10)
 
@@ -687,7 +729,7 @@ END MODULE Constants
    ENDIF
    IF(nn /= 0) PRINT*,' File JSide.d was not opened! '
       DO J=1,NV
-         WRITE(10,FMT='(2i6,i4,4i8,i4)')  (JSD(N,J), N=1,8)
+         WRITE(10,FMT='(2i7,i5,4i8,i5)')  (JSD(N,J), N=1,8)
       END DO
    CLOSE(10)
 

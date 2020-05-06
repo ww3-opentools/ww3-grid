@@ -1,9 +1,7 @@
-#!/bin/bash
-
 #==================================================================================
 # BSD License
 #
-# Copyright (c)2007-2020, ww3-opentools developers, all rights reserved
+# Copyright (c)2020, ww3-opentools developers, all rights reserved
 #
 # Redistribution and use in source and binary forms, with or without modification,
 # are permitted provided that the following conditions are met:
@@ -31,64 +29,16 @@
 # OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 #==================================================================================
-# run_genSides.sh
+# [CODENAME]
 #
 # PURPOSE:
-#  Runs genSides.f90 executable and countijsdnew scripts to generate SMC grid cell
-#  face arrays for use with WAVEWATCH III
-# inputs are:
-#  $1 working directory, the *Cels.dat and *.nml file(s) need to be in here
-#  $2 the namelist to be used; e.g. smcGrid.nml, arcGrid.nml 
+#  Write purpose here
 #
 # REVISION HISTORY:
 #
-# J.G. Li; Met Office; Aug-2007; Version:0.1
-#  Initial functions development and testing at Met Office
+# [AUTHOR NAME]; [INSTITUTION]; [MMM-YYYY]; [VERSION]
+# [REVISION INFORMATION]
 #
-# A. Saulter; Met Office; May-2020 Version:1.0
-#  Code library prepared for initial release on github
 #
 #==================================================================================
 
-set -eu
-
-WRKDIR=$1
-NMLIST=$2
-
-MYDIR=$PWD
-
-cp genSides.exe $WRKDIR/work.genSides.exe
-cp countijsd.sh $WRKDIR/work.countijsd.sh
-
-cd $WRKDIR
-
-CHKARC=`grep ARCTIC $NMLIST | cut -f 2 -d '.'`
-if [ "$CHKARC" == "TRUE" ]; then
-   LOGFILE='arcSides_output.txt'
-else
-   LOGFILE='smcSides_output.txt'
-fi
-echo "[INFO] genSides logfile is: $LOGFILE"
-
-cp $NMLIST smcSides.nml
-echo '[INFO] Launching genSides.exe to generate face arrays'
-work.genSides.exe >$LOGFILE
-
-echo '[INFO] Sorting the face arrays'
-NLEVS=`grep NLEVS $NMLIST | cut -f 2 -d '='`
-CHKARC=`grep ARCTIC $NMLIST | cut -f 2 -d '.'`
-if [ "$CHKARC" == "TRUE" ]; then
-   work.countijsd.sh $NLEVS ww3AISide.d ww3AJSide.d >>$LOGFILE
-else
-   work.countijsd.sh $NLEVS ww3GISide.d ww3GJSide.d >>$LOGFILE
-fi
-
-echo '[INFO] Tidying up'
-rm work.genSides.exe
-rm work.countijsd.sh
-rm smcSides.nml
-rm *ISide.d *JSide.d
-
-cd $MYDIR
-
-exit 0
