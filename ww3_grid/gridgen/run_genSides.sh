@@ -36,28 +36,28 @@
 # PURPOSE:
 #  Runs genSides.f90 executable and countijsdnew scripts to generate SMC grid cell
 #  face arrays for use with WAVEWATCH III
-# inputs are:
-#  $1 working directory, the *Cels.dat and *.nml file(s) need to be in here
-#  $2 the namelist to be used; e.g. smcGrid.nml, arcGrid.nml 
 #
 # REVISION HISTORY:
 #
-# J.G. Li; Met Office; Aug-2007; Version:0.1
+# J.G. Li; Met Office; Aug-2007
 #  Initial functions development and testing at Met Office
 #
-# A. Saulter; Met Office; May-2020 Version:1.0
+# A. Saulter; Met Office; May-2020
 #  Code library prepared for initial release on github
 #
 #==================================================================================
 
 set -eu
 
+# inputs are:
+#  $1 working directory, the *Cels.dat and *.nml file(s) need to be in here
+#  $2 the namelist to be used; e.g. smcGrid.nml, arcGrid.nml 
 WRKDIR=$1
 NMLIST=$2
 
 MYDIR=$PWD
 
-cp genSides.exe $WRKDIR/work.genSides.exe
+cp genSides $WRKDIR/work.genSides
 cp countijsd.sh $WRKDIR/work.countijsd.sh
 
 cd $WRKDIR
@@ -71,10 +71,10 @@ fi
 echo "[INFO] genSides logfile is: $LOGFILE"
 
 cp $NMLIST smcSides.nml
-echo '[INFO] Launching genSides.exe to generate face arrays'
-work.genSides.exe >$LOGFILE
+echo '[INFO] Launching genSides to generate face arrays'
+work.genSides >$LOGFILE
 
-echo '[INFO] Sorting the face arrays'
+echo '[INFO] Sorting the face arrays using countijsd'
 NLEVS=`grep NLEVS $NMLIST | cut -f 2 -d '='`
 CHKARC=`grep ARCTIC $NMLIST | cut -f 2 -d '.'`
 if [ "$CHKARC" == "TRUE" ]; then
@@ -84,7 +84,7 @@ else
 fi
 
 echo '[INFO] Tidying up'
-rm work.genSides.exe
+rm work.genSides
 rm work.countijsd.sh
 rm smcSides.nml
 rm *ISide.d *JSide.d

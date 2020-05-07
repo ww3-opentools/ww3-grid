@@ -37,10 +37,10 @@
 #
 # REVISION HISTORY:
 #
-# J.G. Li; Met Office; Dec-2018; Version:0.1
+# J.G. Li; Met Office; Dec-2018
 #  Initial functions development and testing at Met Office
 #
-# A. Saulter; Met Office; May-2020; Version:1.0
+# A. Saulter; Met Office; May-2020
 #  Code library prepared for initial release on github
 #
 #==================================================================================
@@ -59,7 +59,7 @@ from plotSMCgrid import swhglobl
 from plotSMCgrid import swhlocal
 
 def readGridnml(Wrkdir='.',fname='smcGrid.nml'):
-    """Read grid information from smcGrid namelist file"""
+    """ Read grid information from smcGrid namelist file """
 
     gridmeta={}
     nmlfile = Wrkdir+'/'+fname
@@ -79,8 +79,8 @@ def readGridnml(Wrkdir='.',fname='smcGrid.nml'):
         gridmeta['ny'] = np.int(rdfile[2].split('=')[1]) 
         gridmeta['grdfile'] = rdfile[9].split('=')[1].split("'")[1] 
         # use RUNARCTIC to tell me if I need to load an arctic grid file
-        if rdfile[18].split('=')[1].split('.')[1].lower() == 'true':
-            gridmeta['arcfile'] = rdfile[19].split('=')[1].split("'")[1] 
+        if rdfile[16].split('=')[1].split('.')[1].lower() == 'true':
+            gridmeta['arcfile'] = rdfile[17].split('=')[1].split("'")[1] 
         else:
             gridmeta['arcfile'] = None
         print('[INFO] Read grid data from %s' %nmlfile)
@@ -92,8 +92,7 @@ def readGridnml(Wrkdir='.',fname='smcGrid.nml'):
 
 def pltProps(Wrkdir, ModlName, Cel_file='ww3Cels.dat', 
               Arc_file=None, DatGMC=None, Flsdir=None, figtype='.png'):
-
-    """Plots results of SMC propagation tests"""
+    """ Plots results of SMC propagation tests """
     # Note - postscript is presently hardwired in swhglobl and swhlocal
 
     if DatGMC is None:
@@ -235,12 +234,10 @@ def pltProps(Wrkdir, ModlName, Cel_file='ww3Cels.dat',
                      mdlname= ModlName, datx=thrs,psfile=figfl,
                      paprorn=papror )
 
-    # Increase ijk for next plot
+        # Increase ijk for next plot
         ijk += 1
         print("[INFO] Finish plot No.", ijk," at ", datetime.now())
-
     # End of date loop
-    return
 
 
 #---

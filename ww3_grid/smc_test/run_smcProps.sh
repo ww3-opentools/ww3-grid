@@ -36,21 +36,21 @@
 # PURPOSE:
 #  Runs smcProps.f90 executable, for the smc propagation test and move results data
 #  into smcProps subdirectory
-#  inputs are:
-#   $1 working directory, the *Cels.dat *Side.dat and *.nml file(s) need to be here
 #
 # REVISION HISTORY:
 #
-# J.G. Li; Met Office; Aug-2007; Version:0.1
+# J.G. Li; Met Office; Aug-2007
 #  Initial functions development and testing at Met Office
 #
-# A. Saulter; Met Office; May-2020 Version:1.0
+# A. Saulter; Met Office; May-2020
 #  Code library prepared for initial release on github
 #
 #==================================================================================
 
 set -eu
 
+#  inputs are:
+#   $1 working directory, the *Cels.dat *Side.dat and *.nml file(s) need to be here
 if [ $# -ne 1 ]
   then echo "$0: Usage is $0 PATHTOWORKINGDIRECTORY "
   exit 1
@@ -59,20 +59,20 @@ WRKDIR=$1
 
 MYDIR=$PWD
 
-cp smcProps.exe $WRKDIR/work.smcProps.exe
+cp smcProps $WRKDIR/work.smcProps
 
 echo "[INFO] Running propagation tests in $WRKDIR"
 cd $WRKDIR
-echo '[INFO] Launching smcProps.exe for propagation tests'
+echo '[INFO] Launching smcProps for propagation tests'
 echo "[INFO] smcProps logfile is: smcProps_output.txt"
-work.smcProps.exe >smcProps_output.txt
+work.smcProps >smcProps_output.txt
 
 echo '[INFO] Tidying up'
 echo "[INFO] Moving smcProps files to ${WRKDIR}/smcProps"
 if [ ! -d smcProps ]; then
   mkdir smcProps
 fi
-rm work.smcProps.exe
+rm work.smcProps
 mv smcProps_output.txt smcProps
 mv Cn*.d smcProps
 mv CMesgs.txt smcProps

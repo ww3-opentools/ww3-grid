@@ -668,7 +668,6 @@ def smcglobl(cel, nvrts, ncels, svrts, scels, colrs, config, Arctic=None,
                 orientation='landscape',papertype=paprtyp,format='ps')
 
     # End of smcglobl plot function
-    return
 
 
 def smclocal(cel, verts, ncels, colrs, config, Arctic=None, 
@@ -824,7 +823,6 @@ def smclocal(cel, verts, ncels, colrs, config, Arctic=None,
                 orientation=paprorn,papertype=paprtyp,format='ps')
 
     #  End of smclocal plot function. ##
-    return
 
 
 """
@@ -1010,9 +1008,7 @@ def swhglobl(swhs, nvrts, ncels, svrts, scels, colrs, config,
                     orientation='landscape',papertype=paprtyp,format='ps')
 
         plt.close()
-
     # End of swhglobal plot.
-    return
 
 
 def swhlocal(swhs, verts, ncels, colrs, config,
@@ -1142,4 +1138,3 @@ def swhlocal(swhs, verts, ncels, colrs, config,
         plt.close()
 
     #  End of swhlocal 
-    return

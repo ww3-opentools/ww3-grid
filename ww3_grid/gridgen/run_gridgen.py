@@ -36,7 +36,7 @@
 #
 # REVISION HISTORY:
 #
-# A. Saulter; Met Office; May-2020; Version: 1.0
+# A. Saulter; Met Office; May-2020
 #  Code prepared for initial release on github
 #
 #==================================================================================
@@ -50,9 +50,9 @@ import gridgen as grd
 
 
 def readConfigMark(config, procname):
-    '''Reads in relevant content of config file for cell marking actions
-       This is called as a separate function so that mark actions can be
-       composited'''
+    """ Reads in relevant content of config file for cell marking actions
+        This is called as a separate function so that mark actions can be
+        composited """
 
     # place mark actions into a list
     cfginfo = {'action':'mark',
@@ -165,7 +165,7 @@ def readConfigMark(config, procname):
 
 
 def readConfig(procname, cfgfile):
-    '''Reads in relevant content of config file according to action'''
+    """ Reads in relevant content of config file according to action """
 
     # read info from the configuration file
     print('[INFO] Searching for configuration information from: %s' %cfgfile)
@@ -347,7 +347,7 @@ def readConfig(procname, cfgfile):
 
 
 def runGridgen(cfginfo):
-    '''Select and run gridgen actions based on .cfg file namelist'''
+    """ Select and run gridgen actions based on .cfg file namelist """
 
     if cfginfo['action'] == 'smcbase':
         # generate the base grid
@@ -471,7 +471,7 @@ def runGridgen(cfginfo):
         print('*** Removing dry cells')
         combsmc.delCells(celltype='alldry')
         # visualize the grid
-        grd.plotGridsmc(combsmc, latlon=False)
+        grd.plotGridsmc(combsmc, latlon=True)
         # write out ww3 format files
         print('')
         print('*** Writing smc cells to text file')

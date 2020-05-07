@@ -37,10 +37,10 @@
 #
 # REVISION HISTORY:
 #
-# J.G. Li; Met Office; Dec-2018; Version:0.1
+# J.G. Li; Met Office; Dec-2018
 #  Initial functions development and testing at Met Office
 #
-# A. Saulter; Met Office; May-2020; Version:1.0
+# A. Saulter; Met Office; May-2020
 #  Code library prepared for initial release on github
 #
 #==================================================================================
@@ -59,7 +59,7 @@ from plotSMCgrid import smclocal
 
 
 def readGridnml(Wrkdir='.',fname='smcGrid.nml'):
-    """Read grid information from smcGrid namelist file"""
+    """ Read grid information from smcGrid namelist file """
 
     gridmeta={}
     nmlfile = Wrkdir+'/'+fname
@@ -79,8 +79,8 @@ def readGridnml(Wrkdir='.',fname='smcGrid.nml'):
         gridmeta['ny'] = np.int(rdfile[2].split('=')[1]) 
         gridmeta['grdfile'] = rdfile[9].split('=')[1].split("'")[1] 
         # use RUNARCTIC to tell me if I need to load an arctic grid file
-        if rdfile[18].split('=')[1].split('.')[1].lower() == 'true':
-            gridmeta['arcfile'] = rdfile[19].split('=')[1].split("'")[1] 
+        if rdfile[16].split('=')[1].split('.')[1].lower() == 'true':
+            gridmeta['arcfile'] = rdfile[17].split('=')[1].split("'")[1] 
         else:
             gridmeta['arcfile'] = None
         print('[INFO] Read grid data from %s' %nmlfile)
@@ -93,8 +93,7 @@ def readGridnml(Wrkdir='.',fname='smcGrid.nml'):
 def pltSMCgrid(ModlName, nlevs, dx, dy, x0, y0, nx, ny,
                 Wrkdir, Cel_file='ww3Cels.dat', Arc_file=None, DatGMC=None,
                 figtype='.ps'):
-
-    """Plots SMC grid data as postscript format file"""
+    """ Plots SMC grid data as postscript format file """
     # Note - postscript is presently hardwired in smcglobl and smclocal
 
     print("[INFO] Program started at %s " % datetime.now().strftime('%F %H:%M:%S'))
@@ -293,9 +292,7 @@ def pltSMCgrid(ModlName, nlevs, dx, dy, x0, y0, nx, ny,
                  paprorn=papror)
 
     print( "[INFO] Program finished at %s " % datetime.now().strftime('%F %H:%M:%S') )
-
     #End of pltSMCgrid program
-    return
 
 
 #---

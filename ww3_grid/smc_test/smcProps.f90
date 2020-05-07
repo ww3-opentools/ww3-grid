@@ -36,13 +36,13 @@
 !
 ! REVISION HISTORY:
 !
-! J.G. Li; Met Office; Aug-2007; Version:0.1
+! J.G. Li; Met Office; Aug-2007
 !  Initial code development and testing at Met Office
 !
-! J.G. Li; Met Office; Nov-2008 to Apr-2014; Version:0.2
+! J.G. Li; Met Office; Nov-2008 to Apr-2014
 !  Adaptations for new Met Office grid configurations
 !
-! A. Saulter; Met Office; May-2020; Version:1.0
+! A. Saulter; Met Office; May-2020
 !  Further adaptations for generic grids; code prepared for initial release on 
 !  github
 !
@@ -64,8 +64,8 @@
        REAL,PARAMETER:: Agu36=4.8481E-5, Frqcy=0.0625,   &
          &            Pie=3.141592654, RAD2D=180.0/Pie, D2RAD=Pie/180.0
 
-       !REAL,PARAMETER:: DT=150.0, AKH=100.0
-       REAL,PARAMETER:: AKH=100.0
+       !PoLAT, PoLON constant uses to set reference frame for arctic propagation
+       REAL,PARAMETER:: AKH=100.0, PoLAT= 0.0, PoLON=-180.0
 
 !  Some physical and atmospheric constants
        REAL,PARAMETER:: GRVTY=9.806,CPVAP=1004.5,RDRY=287.05, &
@@ -74,7 +74,7 @@
        &    REARTH=6.371E6
 
 ! Array variables to be used for data storage
-       REAL:: BXSB, BYSB, BX0, BY0, PoLAT, PoLON, DLAT, DLON, ZrLAT, ZrLON, PROPTS
+       REAL:: BXSB, BYSB, BX0, BY0, DLAT, DLON, ZrLAT, ZrLON, PROPTS
        REAL::  AMG, CMX, CTT, UMX, DY, DYR, DX0, DThta, SWH0, Alpha, DT
        REAL::  AKHDT2, CGCMX, CRFMX 
        REAL, DIMENSION(-9:NCL):: A, C, D, F, AU, AV, DX, DXR, UC, VC, RCELA
@@ -139,7 +139,7 @@
        &              AFNAME, AINAME, AJNAME 
 
        NAMELIST /GRID_NML/ NLEVS, NBLAT, NBLON, BXSB, BYSB, BX0, BY0, ARCTIC, FNAME, INAME, JNAME 
-       NAMELIST /PROP_NML/ NSLAT, NSLON, PoLAT, PoLON, RUNARCTIC, AFNAME, AINAME, AJNAME, PROPTS 
+       NAMELIST /PROP_NML/ NSLAT, NSLON, RUNARCTIC, AFNAME, AINAME, AJNAME, PROPTS 
 
 !  Read the grid NAMELIST
        OPEN(UNIT=11, FILE='smcGrid.nml',STATUS='OLD',IOSTAT=nn,ACTION='READ')
@@ -486,7 +486,9 @@
 
        WRITE(UNIT=16,FMT='(1x," Size-1 Units DLON DLAT = ",2f14.10)')  DLON, DLAT
        WRITE(UNIT=16,FMT='(1x," Number of levels       = ",i8)')  NLEVS
-       WRITE(UNIT=16,FMT='(1x," Equatorial PoLat PoLon = ",2f8.2)')  PoLat, PoLon
+       IF(ARCTIC) THEN
+          WRITE(UNIT=16,FMT='(1x," Equatorial PoLat PoLon = ",2f8.2)')  PoLat, PoLon
+       ENDIF
        WRITE(UNIT=16,FMT='(1x," Standard grid ZrLatLon = ",2f9.5)')  ZrLat, ZrLon
        WRITE(UNIT=16,FMT='(1x," Angular speed Eq Agu36 = ",ES12.3)') Agu36
        WRITE(UNIT=16,FMT='(1x," Horizontal diffusivity = ",f8.1)' )  AKH

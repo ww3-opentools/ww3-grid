@@ -36,7 +36,7 @@
 #
 # REVISION HISTORY:
 #
-# A. Saulter; Met Office; May-2020 Version:1.0
+# A. Saulter; Met Office; May-2020
 #  Code prepared for initial release on github
 #
 #==================================================================================
@@ -52,7 +52,7 @@ from gebco_reduce import correctLakesBathyfromfile
 from gebco_reduce import plotGridfromfile
 
 def readConfig(action, cfgfile):
-    '''Reads in relevant content of config file according to action'''
+    """ Reads in relevant content of config file according to action """
 
     if action == 'reduce':
         # set defaults
@@ -99,6 +99,7 @@ def readConfig(action, cfgfile):
         cfginfo = {'dx':0.5,
                    'dy':0.5,
                    'depthmin':0.0,
+                   'region':None,
                    'extents':None,
                    'pltchk':True,
                    'correctlakes':False,

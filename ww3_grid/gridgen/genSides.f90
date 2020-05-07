@@ -37,13 +37,13 @@
 !
 ! REVISION HISTORY:
 !
-! J.G. Li; Met Office; Aug-2007; Version:0.1
+! J.G. Li; Met Office; Aug-2007
 !  Initial code development and testing at Met Office
 !
-! J.G. Li; Met Office; Nov-2008 to Jan-2013; Version:0.2
+! J.G. Li; Met Office; Nov-2008 to Jan-2013
 !  Adaptations for new Met Office grid configurations
 !
-! A. Saulter; Met Office; May-2020; Version:1.0
+! A. Saulter; Met Office; May-2020
 !  Further adaptations for generic grids; code prepared for initial release on 
 !  github
 !

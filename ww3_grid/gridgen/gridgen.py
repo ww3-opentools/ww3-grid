@@ -37,10 +37,10 @@
 #
 # REVISION HISTORY:
 #
-# A. Saulter; Met Office; May-2019; Version:0.1
+# A. Saulter; Met Office; May-2019
 #  Initial code development and testing at Met Office
 #
-# A. Saulter; Met Office; May-2020; Version:1.0
+# A. Saulter; Met Office; May-2020
 #  Code prepared for initial release on github
 #
 #==================================================================================
@@ -52,6 +52,7 @@ import copy
 import iris
 
 class regGrid:
+    """ Class for regular grid """
 
     def __init__(self, name='regular_grid'):
         self.name = name
@@ -74,14 +75,14 @@ class regGrid:
         self.celldepths = None
 
     def setDryLimits(self, mindepth=10.0, dlim=0.0, drymin=0.0, drymax=0.99):
-        '''Update the limits for defining model minimum depth and wet and dry cells'''
+        """Update the limits for defining model minimum depth and wet and dry cells"""
         self.mindepth = mindepth
         self.dlim   = dlim
         self.drymin = drymin
         self.drymax = drymax
 
     def setExtents(self, llx, lly, urx, ury, dx, dy):
-        '''Sets the grid; for regular defines llx,lly as cell midpoint'''
+        """Sets the grid; for regular defines llx,lly as cell midpoint"""
         nx, ny = setXYdims(llx, lly, urx, ury, dx, dy)
         self.llx = llx
         self.lly = lly
@@ -91,24 +92,24 @@ class regGrid:
         self.ny = ny
 
     def setGrid(self):
-        '''Sets the grid using cell midpoints'''
+        """Sets the grid using cell midpoints"""
         self.midcellsx, self.midcellsy = setGridRegular(self.llx, self.lly,
                                                         self.dx, self.dy,
                                                         self.nx, self.ny)
     def setBounds(self):
-        '''Set cell boundaries for fill depth calculations'''
+        """Set cell boundaries for fill depth calculations"""
         self.cellbounds = setCellBoundsRegular(self.midcellsx, self.midcellsy,
                                                self.dx, self.dy)
 
     def setDepths(self, rdlats, rdlons, rdbathy, median_depth=False):
-        '''Set cell depths using fill depth calculations'''
+        """Set cell depths using fill depth calculations"""
         self.celldepths = fillCells(self.cellbounds, rdlats, rdlons,
                                     rdbathy, dlim=self.dlim,
                                     drymin=self.drymin, drymax=self.drymax,
                                     rotated=self.rtd, median_depth=False)
 
     def writeWW3(self, writedir='.'):
-        '''Write the grid data out to ww3_grid compatible files'''
+        """Write the grid data out to ww3_grid compatible files"""
         writedepths = cells2grid(self.midcellsx, self.midcellsy,
                                  self.celldepths[:,0])
         writemask = cells2grid(self.midcellsx, self.midcellsy,
@@ -124,6 +125,7 @@ class regGrid:
                         writedir='.')        
 
 class smcGrid:
+    """ Class for SMC grid """
 
     def __init__(self, name='smc_grid', label='basegrid'):
         self.name = name
@@ -149,7 +151,7 @@ class smcGrid:
         self.celldepths = None
 
     def setDryLimits(self, mindepth=None, dlim=None, drymin=None, drymax=None):
-        '''Update the limits for defining model minimum depth and wet and dry cells'''
+        """Update the limits for defining model minimum depth and wet and dry cells"""
         if mindepth is not None:
             self.mindepth = mindepth
         if dlim is not None:
@@ -160,7 +162,7 @@ class smcGrid:
             self.drymax = drymax
 
     def setExtents(self, llx, lly, urx, ury, dx, dy):
-        '''Sets the grid; for SMC defines llx,lly as cell lower left corner'''
+        """Sets the grid; for SMC defines llx,lly as cell lower left corner"""
         nx, ny = setXYdims(llx, lly, urx, ury, dx, dy)
         self.llx = llx
         self.lly = lly
@@ -170,7 +172,7 @@ class smcGrid:
         self.ny = ny
 
     def setGridFromRegular(self):
-        '''Sets the grid using cell lower left corners'''
+        """Sets the grid using cell lower left corners"""
         self.midcellsx, self.midcellsy, self.smccells = setGridRegular(
                                                            self.llx, self.lly,
                                                            self.dx, self.dy,
@@ -179,7 +181,7 @@ class smcGrid:
                                                            smc=True)
 
     def setCFLCells(self):
-        '''Applies CFL relaxation criteria to high latitude cells'''
+        """Applies CFL relaxation criteria to high latitude cells"""
         print('[INFO] Applying CFL relaxation for high latitude cells')
         clatmin = np.cos(np.min(np.abs(self.midcellsy)) * np.pi / 180.0)
         xmax = np.max(self.smccells[:,0])
@@ -215,18 +217,18 @@ class smcGrid:
             rtier = rtier + 1
 
     def setBounds(self):
-        '''Set cell boundaries for fill depth calculations'''
+        """Set cell boundaries for fill depth calculations"""
         self.cellbounds = setCellBoundsSMC(self.smccells, self.llx,
                                            self.lly, self.dx, self.dy)
 
     def setMids(self):
-        '''Set cell centres'''
+        """Set cell centres"""
         self.midcellsx, self.midcellsy = setCellMidsSMC(self.smccells, 
                                                         self.llx, self.lly,
                                                         self.dx, self.dy)
 
     def setDepths(self, rdlats, rdlons, rdbathy, pland=None, median_depth=False, setadj=True):
-        '''Set cell depths using fill depth calculations'''
+        """Set cell depths using fill depth calculations"""
         self.celldepths = fillCells(self.cellbounds, rdlats, rdlons,
                                     rdbathy, dlim=self.dlim,
                                     drymin=self.drymin, drymax=self.drymax,
@@ -234,7 +236,7 @@ class smcGrid:
                                     median_depth=median_depth, smc=True, setadj=setadj)
 
     def markDepths(self, depthlim, marker='tier', arclat=84.0):
-        '''Marks cells shallower than given depth for tier'''
+        """Marks cells shallower than given depth for tier"""
         print('[INFO] Marking cells shallower than depth limit %.2f m as %s' %(depthlim,marker))
         if depthlim > 0.0:
             print('[WARN] Depth is set greater than zero, changing sign for depth negative convention')
@@ -248,12 +250,12 @@ class smcGrid:
             self.celldepths[(self.celldepths[:,0]>=depthlim) & (self.midcellsy[:] < arclat), 2] = 0
 
     def markDrypc(self, pcdry):
-        '''Marks cells with dry percentage greater than threshold as dry'''
+        """Marks cells with dry percentage greater than threshold as dry"""
         # use latitude indices to ensure cells in arctic part of grid are not tiered
         self.celldepths[(self.celldepths[:,1]>=pcdry) & (self.midcellsy[:] < arclat), 2] = 0
 
     def markRegion(self, xsw, ysw, xne, yne, marker='tier', depthlim=None):
-        '''Marks cells in a given region for tier'''
+        """Marks cells in a given region for tier"""
         if yne > 84.0:
             print('[WARN] Provided northeast latitude >84N')
             print('[INFO] Setting northeast latitude to 84N to avoid cell conflicts in arctic grid')
@@ -282,7 +284,7 @@ class smcGrid:
             self.celldepths[inds, 2] = 0
 
     def unmarkCells(self, marker='tier', box=None, osbox=False, thruzero=False):
-        '''Sets marked cells to wet setting'''
+        """Sets marked cells to wet setting"""
         if box is not None:
             xsw = box[0]
             ysw = box[1]
@@ -330,8 +332,8 @@ class smcGrid:
                 self.celldepths[self.celldepths[:,2] == 0, 2] = 1
 
     def delCells(self,celltype='dry'):
-        '''Remove dry or tier cells from SMC grid arrays,
-            options are dry, alldry, tier, alltier'''
+        """Remove dry or tier cells from SMC grid arrays,
+            options are dry, alldry, tier, alltier"""
         self.smccells, self.midcellsx, self.midcellsy, \
         self.cellbounds, self.celldepths = removeCells(self.smccells,
                                                        self.midcellsx,
@@ -350,7 +352,7 @@ class smcGrid:
 
     def writeWW3(self, writedir='.', mindepth=None, writemindepth=False,
                   arctic=False, arclat=86.4):
-        '''Write the grid data out to ww3_grid compatible files'''
+        """Write the grid data out to ww3_grid compatible files"""
         if mindepth is None:
             mindepth = self.depthmin
         writeWW3smc(self.smccells, self.celldepths, self.ntiers,  
@@ -366,20 +368,20 @@ class smcGrid:
     def writeBounds(self, writedir='.', lon360=True,
                      north=False, east=False, south=False, west=False,
                      rlon=None, rlat=None):
-        '''Writes boundary cell centre values to ww3_grid compatible files'''
+        """Writes boundary cell centre values to ww3_grid compatible files"""
         writeBoundsmc(self, writedir=writedir, lon360=lon360, 
                        north=north, east=east, south=south, west=west,
                        rlon=rlon, rlat=rlat)
 
     def writeNC(self, writedir='.', filename=None):
-        '''Write core SMC grid and metadata out to a netCDF file'''
+        """Write core SMC grid and metadata out to a netCDF file"""
         writeNCsmc(self, writedir=writedir, filename=filename)
 
 
 #--- helper functions ---        
 
 def chkAdj(ind, smcbounds, altbounds=None, nexttier=False):
-    '''Finds cells intersecting indexed cell corners'''
+    """Finds cells intersecting indexed cell corners"""
 
     # corners are ordered as SW, NW, NE, SE
     # 1st corners for box we want to test, 2nd corner for intersect to test
@@ -412,7 +414,7 @@ def chkAdj(ind, smcbounds, altbounds=None, nexttier=False):
 
 
 def chkAdjxy(ind, cellsbox, altbox=None, nexttier=False):
-    '''Finds cells intersecting indexed cell corners'''
+    """Finds cells intersecting indexed cell corners"""
 
     # corners are ordered as SW, NW, NE, SE
     # 1st corners for box we want to test, 2nd corner for intersect to test
@@ -441,7 +443,7 @@ def chkAdjxy(ind, cellsbox, altbox=None, nexttier=False):
 
 
 def setXYdims(llx, lly, urx, ury, dx, dy):
-    '''Define regular grid nx,ny based on extents and dx,dy'''
+    """Define regular grid nx,ny based on extents and dx,dy"""
 
     nx = np.int(np.ceil((urx - llx) / dx))
     ny = np.int(np.ceil((ury - lly) / dy))
@@ -452,7 +454,7 @@ def setXYdims(llx, lly, urx, ury, dx, dy):
 
 def setGridRegular(llx, lly, dx, dy, nx, ny, midpoint=True,
                    smc=False):
-    '''Set up a regular grid mesh based on extents and dx,dy'''
+    """Set up a regular grid mesh based on extents and dx,dy"""
 
     if smc:
         print('[INFO] Returning grid with %d seapoints' %(nx*ny))
@@ -481,59 +483,71 @@ def setGridRegular(llx, lly, dx, dy, nx, ny, midpoint=True,
 
 
 def setCellBoundsRegular(midcellsx, midcellsy, dx, dy):
-    '''Returns a cells boundary list for a regular grid,
-       using mid cell values and dx,dy'''
+    """Returns a cells boundary list for a regular grid,
+       using mid cell values and dx,dy"""
 
     print('[INFO] Setting cell boundaries array for regular grid')
     nx = len(midcellsx)
     ny = len(midcellsy)
     cell_bounds = np.zeros([ny*nx, 4])
-    for lpy, y in enumerate(midcellsy):
-        for lpx, x in enumerate(midcellsx):
-            lpt = lpy * nx + lpx
-            cell_bounds[lpt,0] = midcellsx[lpx] - 0.5 * dx # sw corner x
-            cell_bounds[lpt,1] = midcellsy[lpy] - 0.5 * dy # sw corner y
-            cell_bounds[lpt,2] = midcellsx[lpx] + 0.5 * dx # ne corner x
-            cell_bounds[lpt,3] = midcellsy[lpy] + 0.5 * dy # ne corner y
+    for iy, y in enumerate(midcellsy):
+        for ix, x in enumerate(midcellsx):
+            i = iy * nx + ix
+            cell_bounds[i,0] = midcellsx[ix] - 0.5 * dx # sw corner x
+            cell_bounds[i,1] = midcellsy[iy] - 0.5 * dy # sw corner y
+            cell_bounds[i,2] = midcellsx[ix] + 0.5 * dx # ne corner x
+            cell_bounds[i,3] = midcellsy[iy] + 0.5 * dy # ne corner y
 
     return cell_bounds
 
 
 def setCellBoundsSMC(smccells, llx, lly, dx, dy):
-    '''Returns a cells boundary list for a SMC grid,
-       using SMC cells, lower left corners and dx,dy'''
+    """Returns a cells boundary list for a SMC grid,
+       using SMC cells, lower left corners and dx,dy"""
 
     print('[INFO] Setting cell boundaries array for SMC grid')
     cell_bounds = np.zeros([np.shape(smccells)[0], 4])
-    for lp in range(np.shape(smccells)[0]):
-        cell_bounds[lp,0] = llx + np.float(smccells[lp,0]) * dx  # sw corner x
-        cell_bounds[lp,1] = lly + np.float(smccells[lp,1]) * dy  # sw corner y
-        cell_bounds[lp,2] = llx + np.float((smccells[lp,0] + \
-                             smccells[lp,2])) * dx               # ne corner x
-        cell_bounds[lp,3] = lly + np.float((smccells[lp,1] + \
-                             smccells[lp,3])) * dy               # ne corner y
+    ## DEPRECATED: loop to generate xcxells data - final check and remove in issue#3
+    #for lp in range(np.shape(smccells)[0]):
+    #    cell_bounds[lp,0] = llx + np.float(smccells[lp,0]) * dx  # sw corner x
+    #    cell_bounds[lp,1] = lly + np.float(smccells[lp,1]) * dy  # sw corner y
+    #    cell_bounds[lp,2] = llx + np.float((smccells[lp,0] + \
+    #                         smccells[lp,2])) * dx               # ne corner x
+    #    cell_bounds[lp,3] = lly + np.float((smccells[lp,1] + \
+    #                         smccells[lp,3])) * dy               # ne corner y
+    cell_bounds[:,0] = llx + smccells[:,0].astype(float) * dx  # sw corner x
+    cell_bounds[:,1] = lly + smccells[:,1].astype(float) * dy  # sw corner y
+    cell_bounds[:,2] = llx + (smccells[:,0].astype(float) + \
+                         smccells[:,2].astype(float)) * dx     # ne corner x
+    cell_bounds[:,3] = lly + (smccells[:,1].astype(float) + \
+                         smccells[:,3].astype(float)) * dy     # ne corner y
 
     return cell_bounds
 
 
 def setCellMidsSMC(smccells, llx, lly, dx, dy):
-    '''Returns cells centre lists for a SMC grid,
-       using SMC cells, lower left corners and dx,dy'''
+    """Returns cells centre lists for a SMC grid,
+       using SMC cells, lower left corners and dx,dy"""
 
     print('[INFO] Setting cell centres array for SMC grid')
     midcellsx = np.zeros(np.shape(smccells)[0])
     midcellsy = np.zeros(np.shape(smccells)[0])
-    for lp in range(np.shape(smccells)[0]):
-        midcellsx[lp] = llx + (np.float(smccells[lp,0]) + \
-                               np.float(smccells[lp,2]) / 2.0) * dx
-        midcellsy[lp] = lly + (np.float(smccells[lp,1]) + \
-                               np.float(smccells[lp,3]) / 2.0) * dy
+    ## DEPRECATED: loop to generate xcxells data - final check and remove in issue#3
+    #for lp in range(np.shape(smccells)[0]):
+    #    midcellsx[lp] = llx + (np.float(smccells[lp,0]) + \
+    #                           np.float(smccells[lp,2]) / 2.0) * dx
+    #    midcellsy[lp] = lly + (np.float(smccells[lp,1]) + \
+    #                           np.float(smccells[lp,3]) / 2.0) * dy
+    midcellsx[:] = llx + (smccells[:,0].astype(float) + \
+                          smccells[:,2].astype(float) / 2.0) * dx
+    midcellsy[:] = lly + (smccells[:,1].astype(float) + \
+                          smccells[:,3].astype(float) / 2.0) * dy
 
     return midcellsx, midcellsy
 
 
 def setCellsXYbox(smccells):
-    '''Returns x-y cell corners lists for a SMC grid'''
+    """Returns x-y cell corners lists for a SMC grid"""
 
     print('[INFO] Setting cell box array for SMC grid')
     cellsbox = np.array([smccells[:,0],smccells[:,1],
@@ -546,8 +560,8 @@ def setCellsXYbox(smccells):
 def fillCells(cell_bounds, rdx, rdy, rdbathy, dlim=0.0, drymin=0.0, 
                drymax=0.99, pland=None, rotated=False, 
                median_depth=False, smc=False, setadj=False):
-    '''Returns a list of depth and land-sea data to correspond
-    with cell bounds list'''
+    """Returns a list of depth and land-sea data to correspond
+    with cell bounds list"""
 
     print('[INFO] Calculating cell depths')
     ncells = np.shape(cell_bounds)[0]
@@ -661,7 +675,7 @@ def fillCells(cell_bounds, rdx, rdy, rdbathy, dlim=0.0, drymin=0.0,
 
 
 def cells2grid(midx, midy, cellsarr):
-    '''Map 1D array for regular grid back to 2D xy array'''
+    """Map 1D array for regular grid back to 2D xy array"""
     nx = len(midx)
     ny = len(midy)
     cells_grid = cellsarr.reshape([ny, nx])
@@ -670,9 +684,9 @@ def cells2grid(midx, midy, cellsarr):
 
 
 def smcTier(llx, lly, dx, dy, smccells, cellbounds, celldepths=None):
-    '''Split cell bound box into 4 cells.
+    """Split cell bound box into 4 cells.
        If celldepths are provided split based on percentage
-       of dry points'''
+       of dry points"""
 
     if celldepths is not None:
         bounds_tmp = cellbounds[np.where(celldepths[:,2] < 0)[0],:]
@@ -726,7 +740,7 @@ def smcTier(llx, lly, dx, dy, smccells, cellbounds, celldepths=None):
 
 def removeCells(smccells, midcellsx, midcellsy, cellbounds, celldepths,
                 celltype='dry'):
-    '''Use the cell depths markers to remove cells from the SMC arrays'''
+    """Use the cell depths markers to remove cells from the SMC arrays"""
 
     if celltype.lower() == 'dry':
         typeval = 0
@@ -757,7 +771,7 @@ def removeCells(smccells, midcellsx, midcellsy, cellbounds, celldepths,
 
    
 def sortSMC(smccells, midcellsx, midcellsy, cellbounds, celldepths):
-    '''Reorder SMC cell arrays; needed before write out'''
+    """Reorder SMC cell arrays; needed before write out"""
 
     print('[INFO] Sorting SMC cells for write out')
     smctmp = np.array([smccells[:,0], smccells[:,1],
@@ -777,7 +791,7 @@ def createBasesmc(bathyfile, extents, dx, dy,
                    name='smc_grid', label='basegrid',
                    mindepth=None, dlim=None, drymin=None, drymax=None, 
                    bathytype='gebco', getpland=True, setadj=True):
-    '''Create a basic SMC grid object from a bathymetry file'''
+    """Create a basic SMC grid object from a bathymetry file"""
 
     # generate the smc grid
     basesmc = smcGrid(name=name, label=label)
@@ -832,7 +846,7 @@ def createTiersmc(bathyfile, smcobj,
                    name=None, label='newtier',
                    mindepth=None, dlim=None, drymin=None, drymax=None, 
                    bathytype='gebco', getpland=True, setadj=True, deldry=False):
-    '''Create a basic SMC grid object from a bathymetry file'''
+    """Create a basic SMC grid object from a bathymetry file"""
 
     # read in bathymetry data from standard dataset
     lon360 = False
@@ -887,7 +901,7 @@ def createTiersmc(bathyfile, smcobj,
 
 
 def joinTiersmc(basesmc, smctier, bathyfile, bathytype='gebco', tiernext=True):
-    '''Combines two smc grids, where second object is next tier'''
+    """Combines two smc grids, where second object is next tier"""
 
     # set up new object 
     # initially this is a copy of the base grid
@@ -1041,7 +1055,7 @@ def joinTiersmc(basesmc, smctier, bathyfile, bathytype='gebco', tiernext=True):
 
 
 def loadNCsmc(smcfile):
-    '''Load an existing SMC grid from netCDF file'''
+    """Load an existing SMC grid from netCDF file"""
 
     print('[INFO] Loading existing SMC grid from %s' %smcfile) 
 
@@ -1152,8 +1166,8 @@ def writeWW3regular(writedepths, writemask, writeblock,
                     depscale=1.0, blkscale=100.0, 
                     rtd=False, plat=90.0, plon=0.0,
                     writedir='.'):
-    '''Write out a regular grid to WAVEWATCH III grid arrays and
-       metadata files'''
+    """Write out a regular grid to WAVEWATCH III grid arrays and
+       metadata files"""
 
     WW3Bathy  = writedir+'/ww3depths.txt'
     unitbathy = 30
@@ -1274,8 +1288,8 @@ def writeWW3smc(smccells, celldepths, ntiers,
                 rtd=False, plat=90.0, plon=0.0,
                 arctic=False, arclat=86.4,
                 writedir='.', name='Unknown', label='SMC'):
-    '''Write out a regular grid to WAVEWATCH III grid arrays and metadata files
-       NOTE: assumes data has already been sorted into correct cell order'''
+    """Write out a regular grid to WAVEWATCH III grid arrays and metadata files
+       NOTE: assumes data has already been sorted into correct cell order"""
 
     WW3Cels = writedir+'/ww3Cels.dat'
     WW3Obst = writedir+'/ww3Obstr.dat'
@@ -1307,9 +1321,11 @@ def writeWW3smc(smccells, celldepths, ntiers,
         yarclim   = ycellslim - 3 * 2.0**(ntiers-1)
         ntotal = np.shape(smccells)[0]
         ncells = np.size(np.where(smccells[:,1] <= ycellslim))
-        nbdycells = np.size(np.where(smccells[:,1] == ycellslim))
+        nbdycells = np.size(np.where(smccells[:,1] == yarclim)) + \
+                    np.size(np.where(smccells[:,1] == yarclim+2.0**(ntiers-1)))
         ncellsarc = np.size(np.where(smccells[:,1] >= yarclim))
-        nbdycellsarc = np.size(np.where(smccells[:,1] == yarclim))
+        nbdycellsarc = np.size(np.where(smccells[:,1] == ycellslim)) + \
+                       np.size(np.where(smccells[:,1] == ycellslim-2.0**(ntiers-1)))
         ncellslast = np.size(np.where(smccells[:,1] == np.max(smccells[:,1])))
         #print(ycellslim, yarclim, ncells, ncellsarc, ncellslast)
                 
@@ -1319,17 +1335,17 @@ def writeWW3smc(smccells, celldepths, ntiers,
         # for main gris, first row is total number of cells
         #  then number of cells in each tier
         outcells = ' %d' %ncells
-        for lp in range(ntiers):
-            ntcells = np.size(np.where(smccells[:ncells,3]==np.int(2**lp)))
+        for i in range(ntiers):
+            ntcells = np.size(np.where(smccells[:ncells,3]==np.int(2**i)))
             outcells = outcells + ' %d' %ntcells
         inp.write(outcells+'\n')
-        for lp in range(ncells):
+        for i in range(ncells):
             # always write out positive cell depths for now...
             if writemindepth:
-                inp.write(' %5d %5d %4d %3d ' %tuple(smccells[lp,:]) + \
-                           '%5d\n' %np.max([np.abs(celldepths[lp,0]),mindepth]))
+                inp.write(' %5d %5d %4d %3d ' %tuple(smccells[i,:]) + \
+                           '%5d\n' %np.max([np.abs(celldepths[i,0]),mindepth]))
             else:
-                inp.write(' %5d %5d %4d %3d ' %tuple(smccells[lp,:]) + '%5d\n' %np.abs(celldepths[lp,0]))
+                inp.write(' %5d %5d %4d %3d ' %tuple(smccells[i,:]) + '%5d\n' %np.abs(celldepths[i,0]))
         inp.close()
     if arctic:
         print('[INFO] Writing arctic grid cell info to '+WW3CelsArc)
@@ -1339,13 +1355,13 @@ def writeWW3smc(smccells, celldepths, ntiers,
             ncellsout = ncellsarc - ncellslast + 1 #ignore data in last row, this will form polar cell
             outcells = ' %d' %ncellsout + ' %d' %nbdycells + ' %d' %nbdycellsarc
             inp.write(outcells+'\n')
-            for lp in range(ntotal-ncellsarc,ntotal-ncellslast):
+            for i in range(ntotal-ncellsarc,ntotal-ncellslast):
                 # always write out positive cell depths for now...
                 if writemindepth:
-                    inp.write(' %5d %5d %4d %3d ' %tuple(smccells[lp,:]) + \
-                               '%5d\n' %np.max([np.abs(celldepths[lp,0]),mindepth]))
+                    inp.write(' %5d %5d %4d %3d ' %tuple(smccells[i,:]) + \
+                               '%5d\n' %np.max([np.abs(celldepths[i,0]),mindepth]))
                 else:
-                    inp.write(' %5d %5d %4d %3d ' %tuple(smccells[lp,:]) + '%5d\n' %np.abs(celldepths[lp,0]))
+                    inp.write(' %5d %5d %4d %3d ' %tuple(smccells[i,:]) + '%5d\n' %np.abs(celldepths[i,0]))
             # polar cell, use average depth over last row and same tier x value as previous row
             avgdep = np.mean(celldepths[ntotal-ncellslast:,0])
             inp.write(' %5d %5d %4d %3d ' %tuple([smccells[ntotal-ncellslast,0],
@@ -1362,9 +1378,9 @@ def writeWW3smc(smccells, celldepths, ntiers,
         #ncells = np.shape(smccells)[0]
         outcells = ' %d' %ncells
         inp.write(outcells+'   1\n')
-        for lp in range(ncells):
+        for i in range(ncells):
             # write out integer cell land percentages...
-            landpc = np.int(celldepths[lp,1]*100.0)
+            landpc = np.int(celldepths[i,1]*100.0)
             if landpc < 1:
                 landpc = 0
             inp.write(' %2d\n' %landpc)
@@ -1533,8 +1549,8 @@ def writeWW3smc(smccells, celldepths, ntiers,
         inp.write('&PROP_NML\n')
         inp.write('  NSLAT = %d\n' %nslat)
         inp.write('  NSLON = %d\n' %nslon)
-        inp.write('  PoLAT = %.1f\n' %plat)
-        inp.write('  PoLON = %.1f\n' %plon)
+        #inp.write('  PoLAT = %.1f\n' %plat)
+        #inp.write('  PoLON = %.1f\n' %plon)
         if arctic:
             inp.write('  RUNARCTIC = .TRUE.\n')
         else:
@@ -1563,12 +1579,10 @@ def writeWW3smc(smccells, celldepths, ntiers,
             inp.write('/\n')
             inp.close()
 
-    return
-
 
 def writeBoundsmc(smcobj, writedir='.', lon360=True, levsmax=True,
                     north=False, east=False, south=False, west=False, rlon=None, rlat=None):
-    '''Writes boundary cell centre and index values'''
+    """Writes boundary cell centre and index values"""
 
     # not sure if the max values in below are correct, may need to be largest cells only??
     if levsmax:
@@ -1625,11 +1639,9 @@ def writeBoundsmc(smcobj, writedir='.', lon360=True, levsmax=True,
             outp2.close()
         outp1.close()
 
-    return
-
 
 def writeNCsmc(smcobj, writedir='.', filename=None):
-    '''Writes core SMC grid and metadata to a netCDF file'''
+    """Writes core SMC grid and metadata to a netCDF file"""
 
     if filename is None:
         filename = smcobj.name.replace(' ','') + '_' + smcobj.label.replace(' ','') + \
@@ -1723,13 +1735,11 @@ def writeNCsmc(smcobj, writedir='.', filename=None):
     ncfile = writedir+'/'+filename
     print('[INFO] Data written to %s' %ncfile)
 
-    return
-
 
 ##--- visualization
 
 def plotGridsmc(smcobj, latlon=True):
-    '''Visualise the grid depths, dry cells and cell type'''
+    """Visualise the grid depths, dry cells and cell type"""
 
     if latlon:
         gx = smcobj.midcellsx
@@ -1762,4 +1772,3 @@ def plotGridsmc(smcobj, latlon=True):
 
     plt.show()
     plt.close()
-    return

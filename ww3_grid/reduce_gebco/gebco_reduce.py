@@ -44,7 +44,7 @@
 #
 # REVISION HISTORY:
 #
-# A. Saulter; Met Office; May-2020; Version:1.0
+# A. Saulter; Met Office; May-2020
 #  Code prepared for initial release on github
 #
 #==================================================================================
@@ -55,7 +55,7 @@ import scipy.interpolate as interp
 import matplotlib.pyplot as plt
 
 def correctLakesBathy(latout, lonout, depout, mskout, depthmin=0.0, removesmall=None, caspianonly=False):
-    '''Apply known height corrections to inland locations'''
+    """ Apply known height corrections to inland locations """
 
     lakecorrections = {}
     # lakes: correct or remove
@@ -122,44 +122,42 @@ def correctLakesBathy(latout, lonout, depout, mskout, depthmin=0.0, removesmall=
     lakecorrections['Halligen'] = {'lonw':8.58,'lats':54.25,'lone':9.0,'latn':55.10,'removal':1000.0} # unknown
     lakecorrections['Elbe'] = {'lonw':9.06,'lats':53.7,'lone':9.9,'latn':53.9,'removal':1000.0} # unknown
     lakecorrections['UnknownNLGer1'] = {'lonw':7.6,'lats':53.4,'lone':10.2,'latn':53.7,'removal':1000.0} # unknown
-    lakecorrections['UnknownNLGer2'] = {'lonw':5.53,'lats':59.2,'lone':9.3,'latn':53.4,'removal':1000.0} # unknown
+    lakecorrections['UnknownNLGer2'] = {'lonw':5.53,'lats':52.9,'lone':9.3,'latn':53.4,'removal':1000.0} # unknown
     lakecorrections['EastAnglia'] = {'lonw':-0.5,'lats':52.34,'lone':0.6,'latn':52.7,'removal':1000.0} # unknown
 
-    for region in lakecorrections.keys():
-        correctlake = True
-        if lakecorrections[region]['lone']<np.min(lonout) or lakecorrections[region]['latn']<np.min(latout) or \
-           lakecorrections[region]['lonw']>np.max(lonout) or lakecorrections[region]['lats']>np.max(latout):
-           correctlake=False
-        if correctlake:
-            print('[INFO] Correcting heights/depths for %s' %region)
-            llx = np.min(np.where(lonout>lakecorrections[region]['lonw']))
-            urx = np.max(np.where(lonout<lakecorrections[region]['lone']))+1
-            lly = np.min(np.where(latout>lakecorrections[region]['lats']))
-            ury = np.max(np.where(latout<lakecorrections[region]['latn']))+1
-            if 'correction' in lakecorrections[region].keys():
-                depout[lly:ury,llx:urx] = depout[lly:ury,llx:urx] + lakecorrections[region]['correction']
-                if lakecorrections[region]['correction'] < 0.0:
-                    mskout[depout <= depthmin] = 0.0
-                else:
-                    mskout[depout > depthmin] = 1.0
+    for name, lake in lakecorrections.items():
+        if(lake['lone'] < np.min(lonout) or lake['latn'] < np.min(latout) or 
+               lake['lonw'] > np.max(lonout) or lake['lats'] > np.max(latout)):
+           continue
+
+        print('[INFO] Correcting heights/depths for %s' % name)
+        llx = np.min(np.where(lonout > lake['lonw']))
+        urx = np.max(np.where(lonout < lake['lone'])) + 1
+        lly = np.min(np.where(latout > lake['lats']))
+        ury = np.max(np.where(latout < lake['latn'])) + 1
+        if 'correction' in lake:
+            depout[lly:ury, llx:urx] = depout[lly:ury, llx:urx] + lake['correction']
+            if lake['correction'] < 0.0:
+                mskout[depout <= depthmin] = 0.0
             else:
-                depout[lly:ury,llx:urx] = depout[lly:ury,llx:urx] + lakecorrections[region]['removal']
                 mskout[depout > depthmin] = 1.0
+        else:
+            depout[lly:ury, llx:urx] = depout[lly:ury, llx:urx] + lake['removal']
+            mskout[depout > depthmin] = 1.0
 
     if removesmall is not None:
-        print('[INFO] Checking through grid for small isolated water bodies at grid size %d' %removesmall)
+        print('[INFO] Checking through grid for small isolated water bodies at grid size %d' % removesmall)
         chksize = removesmall + 2
         delcounter = 0
-        for lpy in range(np.shape(mskout)[0] - chksize): 
-            if np.mod(lpy,100) == 0:
-                print('[INFO] ..processed rows for %d y-cells and removed %d small water bodies' %(lpy,delcounter))
-            for lpx in range(np.shape(mskout)[1] - chksize): 
-                chktmp = np.copy(mskout[lpy:lpy+chksize,lpx:lpx+chksize])
+        for iy in range(np.shape(mskout)[0] - chksize): 
+            if np.mod(iy,100) == 0:
+                print('[INFO] ..processed rows for %d y-cells and removed %d small water bodies' %(iy,delcounter))
+            for ix in range(np.shape(mskout)[1] - chksize): 
+                chktmp = np.copy(mskout[iy:iy+chksize,ix:ix+chksize])
                 if (not np.all(chktmp == 1.0)) and (not np.all(chktmp == 0.0)): 
                     chktmp[1:1+removesmall,1:1+removesmall] = 1.0
                     if np.all(chktmp == 1.0):
-                        mskout[lpy+1:lpy+1+removesmall,lpx+1:lpx+1+removesmall] = 1.0
-                        #depout[lpy+1:lpy+1+removesmall,lpx+1:lpx+1+removesmall] = 10.0
+                        mskout[iy+1:iy+1+removesmall,ix+1:ix+1+removesmall] = 1.0
                         delcounter = delcounter + 1
         print('[INFO] Removed %d small water bodies from land-sea mask' %delcounter)
 
@@ -167,33 +165,29 @@ def correctLakesBathy(latout, lonout, depout, mskout, depthmin=0.0, removesmall=
 
 
 def correctLakesBathyfromfile(ncfile, datadir='.', depthmin=0.0, removesmall=2, caspianonly=True, pltchk=True):
-    '''Apply inland height corrections direct to file'''
+    """ Apply inland height corrections direct to file """
 
     print('[INFO] Applying inland height/depth corrections direct to netCDF file')
     print('[WARN] This action will overwrite existing depth and land-sea mask data')
-    d = nc.Dataset(datadir + '/' + ncfile,'a')
-    lonout = d.variables['lon'][:]
-    latout = d.variables['lat'][:]
-    depout = d.variables['elevation'][:,:]
-    mskout = d.variables['landmask'][:,:]
-    depout, mskout = correctLakesBathy(latout, lonout, depout, mskout, 
-                                        depthmin=depthmin, removesmall=removesmall, caspianonly=caspianonly)
-    elev = d.variables['elevation']
-    mask = d.variables['landmask']
-    elev[:,:] = depout[:,:]
-    mask[:,:] = mskout[:,:]
-    if pltchk:
-        plotGrid(latout, lonout, depths=depout, landsea=mskout, depthmin=5.0, depthmax=-500.0)
-
-    d.corrected_land_lakes = 'True'
-    d.close()
-
-    return
+    with nc.Dataset(datadir + '/' + ncfile,'a') as d:
+        lonout = d.variables['lon'][:]
+        latout = d.variables['lat'][:]
+        depout = d.variables['elevation'][:,:]
+        mskout = d.variables['landmask'][:,:]
+        depout, mskout = correctLakesBathy(latout, lonout, depout, mskout, 
+                                            depthmin=depthmin, removesmall=removesmall, caspianonly=caspianonly)
+        elev = d.variables['elevation']
+        mask = d.variables['landmask']
+        elev[:,:] = depout[:,:]
+        mask[:,:] = mskout[:,:]
+        if pltchk:
+            plotGrid(latout, lonout, depths=depout, landsea=mskout, depthmin=5.0, depthmax=-500.0)
+        d.corrected_land_lakes = 'True'
 
 
 def writeReducedNC(outfile, scalefac, depthmin, latout, lonout, 
                     depout, mskout, datadir='.'):
-    '''Write out the reduced dataset to a new netCDF file'''
+    """ Write out the reduced dataset to a new netCDF file """
 
     loresfile = datadir + '/' + outfile
     print('[INFO] Writing reduced grid data to %s' %loresfile)
@@ -222,14 +216,10 @@ def writeReducedNC(outfile, scalefac, depthmin, latout, lonout,
         nbg.reduction_scale_factor = scalefac
         nbg.minimum_depth = depthmin
 
-        #nbg.close()
-
-    return
-
 
 def writeInterpolatedNC(outfile, dx, dy, depthmin, latout, lonout, 
                     depout, mskout, datadir='.'):
-    '''Write out the reduced dataset to a new netCDF file'''
+    """ Write out the reduced dataset to a new netCDF file """
 
     loresfile = datadir + '/' + outfile
     print('[INFO] Writing reduced grid data to %s' %loresfile)
@@ -259,13 +249,9 @@ def writeInterpolatedNC(outfile, dx, dy, depthmin, latout, lonout,
         nbg.interpolation_dy = dy
         nbg.minimum_depth = depthmin
 
-        #nbg.close()
-
-    return
-
 
 def plotGrid(latout, lonout, depths=None, landsea=None, depthmin=5.0, depthmax=-500.0):
-    '''Plots out the reduced grid as a check'''
+    """ Plots out the reduced grid as a check """
 
     print('[INFO] Plotting depths and/or land-sea mask for checking..')
     if (depths is not None) and (landsea is not None):
@@ -281,11 +267,9 @@ def plotGrid(latout, lonout, depths=None, landsea=None, depthmin=5.0, depthmax=-
         plt.colorbar()
     plt.show()
 
-    return
-
 
 def plotGridfromfile(ncfile, datadir='.', usedepths=True, uselandsea=True, depthmin=5.0, depthmax=-500.0):
-    '''Plots out the reduced grid as a check'''
+    """ Plots out the reduced grid as a check """
 
     depout = None
     mskout = None
@@ -301,11 +285,9 @@ def plotGridfromfile(ncfile, datadir='.', usedepths=True, uselandsea=True, depth
     plotGrid(latout, lonout, depths=depout, landsea=mskout, depthmin=depthmin, depthmax=depthmax)
     d.close()
 
-    return
-
 
 def rebin(arr, new_shape):
-    '''Bin a large array to a smaller one by averaging'''
+    """ Bin a large array to a smaller one by averaging """
 
     if np.size(new_shape) == 1:
         shape = (new_shape[0], arr.shape[0] // new_shape[0])
@@ -318,9 +300,9 @@ def rebin(arr, new_shape):
     return arrout
 
 
-def reduceGrid(hiresfile, scalefac=6, depthmin=0.0, cutout=None, loopmethod=False):
-    '''Reduce the size of GEBCO grid by averaging cells according to integer scale factor.
-       Presently this has only been tested with GEBCO_2014, i.e. 30 seconds grid'''
+def reduceGrid(hiresfile, scalefac=6, depthmin=0.0, cutout=None):
+    """ Reduce the size of GEBCO grid by averaging cells according to integer scale factor.
+    """
 
     print('[INFO] Running reduction of GEBCO data at scale factor %d' %scalefac)
     print('[INFO] Reading data from %s' %hiresfile)
@@ -355,51 +337,33 @@ def reduceGrid(hiresfile, scalefac=6, depthmin=0.0, cutout=None, loopmethod=Fals
     latout = np.zeros(newy)
     lonout = np.zeros(newx)
 
-    # using loops/tiles here to avoid memory problems with read in of full dataset
-    if loopmethod:
-        # loop using strides as the averaging routine
-        lptot = np.float(scalefac**2)
-        for lpx in range(scalefac):
-            for lpy in range(scalefac):
-                lpiter = lpx * scalefac + lpy
-                print('[INFO] Working on iteration %d' %lpiter + ' out of %d' %lptot)
-                dep = d.variables['elevation'][lpy+offsy:dimy+offsy:scalefac,lpx+offsx:dimx+offsx:scalefac]
-                msk = np.zeros(np.shape(dep))
-                msk[dep > depthmin] = 1.
-                lat = d.variables['lat'][lpy+offsy:dimy+offsy:scalefac]
-                lon = d.variables['lon'][lpx+offsx:dimx+offsx:scalefac]
-                depout = depout + dep / lptot
-                mskout = mskout + msk / lptot
-                lonout = lonout + lon / lptot
-                latout = latout + lat / lptot
-    else:
-        # run the tiling method
-        lpx = offsx
-        lpoutx = 0
-        while lpx < offsx+dimx:
-            addx = np.min([tilemaxx, offsx+dimx-lpx])
-            addoutx = np.int(addx/scalefac)
-            lpy = offsy
-            lpouty = 0        
-            while lpy < offsy+dimy:
-                print('[INFO] Working on tile from x:%d, y:%d' %(lpx,lpy))
-                addy = np.min([tilemaxy, offsy+dimy-lpy])
-                addouty = np.int(addy/scalefac)
-                tmpdep = d.variables['elevation'][lpy:lpy+addy,lpx:lpx+addx]
-                tmpmsk = np.zeros(np.shape(tmpdep))
-                tmpmsk[tmpdep > depthmin] = 1.
-                tmplat = d.variables['lat'][lpy:lpy+addy]
-                tmplon = d.variables['lon'][lpx:lpx+addx]
-                print('... read subdomain from file')
-                depout[lpouty:lpouty+addouty,lpoutx:lpoutx+addoutx] = rebin(tmpdep, [addouty,addoutx])
-                mskout[lpouty:lpouty+addouty,lpoutx:lpoutx+addoutx] = rebin(tmpmsk, [addouty,addoutx])
-                latout[lpouty:lpouty+addouty] = rebin(tmplat, [addouty])
-                lonout[lpoutx:lpoutx+addoutx] = rebin(tmplon, [addoutx])
-                print('... reduced subdomain')
-                lpy = lpy + addy
-                lpouty = lpouty + addouty
-            lpx = lpx + addx
-            lpoutx = lpoutx + addoutx
+    # using tiles here to avoid memory problems with read in of full dataset
+    ix = offsx
+    ioutx = 0
+    while ix < offsx+dimx:
+        addx = np.min([tilemaxx, offsx+dimx-ix])
+        addoutx = np.int(addx/scalefac)
+        iy = offsy
+        iouty = 0        
+        while iy < offsy+dimy:
+            print('[INFO] Working on tile from x:%d, y:%d' %(ix,iy))
+            addy = np.min([tilemaxy, offsy+dimy-iy])
+            addouty = np.int(addy/scalefac)
+            tmpdep = d.variables['elevation'][iy:iy+addy,ix:ix+addx]
+            tmpmsk = np.zeros(np.shape(tmpdep))
+            tmpmsk[tmpdep > depthmin] = 1.
+            tmplat = d.variables['lat'][iy:iy+addy]
+            tmplon = d.variables['lon'][ix:ix+addx]
+            print('... read subdomain from file')
+            depout[iouty:iouty+addouty,ioutx:ioutx+addoutx] = rebin(tmpdep, [addouty,addoutx])
+            mskout[iouty:iouty+addouty,ioutx:ioutx+addoutx] = rebin(tmpmsk, [addouty,addoutx])
+            latout[iouty:iouty+addouty] = rebin(tmplat, [addouty])
+            lonout[ioutx:ioutx+addoutx] = rebin(tmplon, [addoutx])
+            print('... reduced subdomain')
+            iy = iy + addy
+            iouty = iouty + addouty
+        ix = ix + addx
+        ioutx = ioutx + addoutx
 
     d.close()
 
@@ -409,7 +373,7 @@ def reduceGrid(hiresfile, scalefac=6, depthmin=0.0, cutout=None, loopmethod=Fals
 def reduceGEBCO(scalefac=6, depthmin=0.0, cutout=None, region=None,
                  pltchk=True, correctlakes=False,
                  gebcofile='GEBCO_2014_2D.nc', datadir='.'):
-    '''Controls the grid reduction process'''
+    """ Controls the grid reduction process """
 
     # generate the reduced grid
     hiresfile = datadir + '/' + gebcofile
@@ -433,11 +397,9 @@ def reduceGEBCO(scalefac=6, depthmin=0.0, cutout=None, region=None,
     writeReducedNC(loresfile, scalefac, depthmin, latout, lonout, 
                     depout, mskout, datadir=datadir)    
 
-    return
-
 
 def interpGrid(hiresfile, dx=0.5, dy=0.5, depthmin=0.0, cutout=None, loopmethod=False):
-    '''Reduce the size of GEBCO grid by interpolating cells'''
+    """ Reduce the size of GEBCO grid by interpolating cells """
 
     print('[INFO] Running reduction of GEBCO data to resolution dx:%.4f, dy:%.4f' %(dx,dy))
     print('[INFO] Reading data from %s' %hiresfile)
@@ -475,43 +437,43 @@ def interpGrid(hiresfile, dx=0.5, dy=0.5, depthmin=0.0, cutout=None, loopmethod=
     lonout = np.arange(x0, xl+dx/5.0, dx)
 
     # using loops/tiles here to avoid memory problems with read in of full dataset
-    lpx = offsx
-    lpoutx = 0
-    while lpx < nlons-1:
-        addx = np.min([tilemaxx+1, nlons-lpx])
-        tmplon = d.variables['lon'][lpx:lpx+addx]
-        addoutx = np.int(np.floor((tmplon[-1] - lonout[lpoutx]) / dx))
-        print('[INFO] Working on tile from x:%d' %lpx)
+    ix = offsx
+    ioutx = 0
+    while ix < nlons-1:
+        addx = np.min([tilemaxx+1, nlons-ix])
+        tmplon = d.variables['lon'][ix:ix+addx]
+        addoutx = np.int(np.floor((tmplon[-1] - lonout[ioutx]) / dx))
+        print('[INFO] Working on tile from x:%d' %ix)
         print('[INFO] GEBCO longitude range: %.8f to %.8f' %(tmplon[0],tmplon[-1]))
         print('[INFO] Number of processed grid cells in x dimension: %d' %addoutx)
         print('[INFO] Processed grid longitude range: %.8f to %.8f' 
-              %(lonout[lpoutx],lonout[lpoutx+addoutx]))
-        lpy = offsy
-        lpouty = 0        
-        while lpy < nlats-1:
-            print('[INFO] Working on tile from x:%d, y:%d' %(lpx,lpy))
-            addy = np.min([tilemaxy+1, nlons-lpy])
-            tmplat = d.variables['lat'][lpy:lpy+addy]
-            addouty = np.int(np.floor((tmplat[-1] - latout[lpouty]) / dy))
+              %(lonout[ioutx],lonout[ioutx+addoutx]))
+        iy = offsy
+        iouty = 0        
+        while iy < nlats-1:
+            print('[INFO] Working on tile from x:%d, y:%d' %(ix,iy))
+            addy = np.min([tilemaxy+1, nlons-iy])
+            tmplat = d.variables['lat'][iy:iy+addy]
+            addouty = np.int(np.floor((tmplat[-1] - latout[iouty]) / dy))
             print('[INFO] GEBCO latitude range: %.8f to %.8f' %(tmplat[0],tmplat[-1]))
             print('[INFO] Number of processed grid cells in y dimension: %d' %addouty)
-            print('[INFO] Processed grid longitude range: %.8f to %.8f' 
-                  %(latout[lpouty],latout[lpouty+addouty]))
-            tmpdep = d.variables['elevation'][lpy:lpy+addy,lpx:lpx+addx]
+            print('[INFO] Processed grid latitude range: %.8f to %.8f' 
+                  %(latout[iouty],latout[iouty+addouty]))
+            tmpdep = d.variables['elevation'][iy:iy+addy,ix:ix+addx]
             tmpmsk = np.zeros(np.shape(tmpdep))
             tmpmsk[tmpdep > depthmin] = 1.
             print('[INFO]... read subdomain from file')
             splinedep = interp.RectBivariateSpline(tmplat,tmplon,tmpdep)
-            depout[lpouty:lpouty+addouty+1,lpoutx:lpoutx+addoutx+1] = \
-              splinedep(latout[lpouty:lpouty+addouty+1],lonout[lpoutx:lpoutx+addoutx+1])
+            depout[iouty:iouty+addouty+1,ioutx:ioutx+addoutx+1] = \
+              splinedep(latout[iouty:iouty+addouty+1],lonout[ioutx:ioutx+addoutx+1])
             splinemsk = interp.RectBivariateSpline(tmplat,tmplon,tmpmsk)
-            mskout[lpouty:lpouty+addouty+1,lpoutx:lpoutx+addoutx+1] = \
-              splinemsk(latout[lpouty:lpouty+addouty+1],lonout[lpoutx:lpoutx+addoutx+1])
+            mskout[iouty:iouty+addouty+1,ioutx:ioutx+addoutx+1] = \
+              splinemsk(latout[iouty:iouty+addouty+1],lonout[ioutx:ioutx+addoutx+1])
             print('[INFO]... interpolated to reduced subdomain')
-            lpy = lpy + addy - 1
-            lpouty = lpouty + addouty + 1
-        lpx = lpx + addx - 1
-        lpoutx = lpoutx + addoutx + 1
+            iy = iy + addy - 1
+            iouty = iouty + addouty + 1
+        ix = ix + addx - 1
+        ioutx = ioutx + addoutx + 1
 
     # correct spline interpolation limits for mask
     mskout[mskout < 0.005] = 0.0
@@ -525,7 +487,7 @@ def interpGrid(hiresfile, dx=0.5, dy=0.5, depthmin=0.0, cutout=None, loopmethod=
 def interpGEBCO(dx=0.5, dy=0.5, depthmin=0.0, region=None, cutout=None,
                  pltchk=True, correctlakes=False,
                  gebcofile='GEBCO_2014_2D.nc', datadir='.'):
-    '''Controls the grid interpolation process'''
+    """ Controls the grid interpolation process """
 
     # generate the reduced grid
     hiresfile = datadir + '/' + gebcofile
@@ -549,5 +511,3 @@ def interpGEBCO(dx=0.5, dy=0.5, depthmin=0.0, region=None, cutout=None,
     loresfile = 'GEBCO_interpolated_%s' %interpstr + '.nc'
     writeInterpolatedNC(loresfile, dx, dy, depthmin, latout, lonout, 
                     depout, mskout, datadir=datadir)    
-
-    return
