@@ -1,19 +1,57 @@
-!  This module is a common block similar in all AFT Model programs and is
-!  written in FORTRAN 90.
-!                     J G Li   26 Oct 2000
-!! Adapted for multiple cell 2D advection tests using UNO schemes.
-!!                    J G Li    8 Aug 2007
-!! Adapted for global multiple cell grid   J G Li   12 Nov 2007
-!! Modified for SMC extended over Arctic Ocean  J G Li   26 Nov 2008
-!! Adapted for multi-resolution UK3 to Global 25km grid  J G Li   8 Feb 2010 
-!! Modified to add minimum y-size in V-flux array.       J G Li  16 Feb 2010 
-!! Adapted for 6-25km global ocean SMC grid.  J G Li   22 Feb 2010
-!! Modified to use new rules on second cell selection.  J G Li   26 Feb 2010 
-!! Modified for SMC625 grid global part only.   J G Li   12 Dec 2011 
-!! Restore second cell selection by one face end equal.   JGLi28Feb2012 
-!! Modified to use new cell count line for SMC625 model.  JGLi01Oct2012 
-!! Adapted for SMC6125 grid with refined UK waters.   JGLi08Jan2013 
-!!
+!==================================================================================
+! BSD License
+!
+! Copyright (c) 2007-2020, ww3-opentools developers, all rights reserved
+!
+! Redistribution and use in source and binary forms, with or without modification,
+! are permitted provided that the following conditions are met:
+!
+! * Redistributions of source code must retain the above copyright notice, this
+!   list of conditions and the following disclaimer.
+!
+! * Redistributions in binary form must reproduce the above copyright notice, this
+!  list of conditions and the following disclaimer in the documentation and/or
+!  other materials provided with the distribution.
+!
+! * Neither the name of the copyright holder nor the names of its
+!  contributors may be used to endorse or promote products derived from this
+!  software without specific prior written permission.
+!
+! THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+! ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+! WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+! IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
+! INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+! BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+! DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
+! OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
+! OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
+! OF THE POSSIBILITY OF SUCH DAMAGE.
+!
+!==================================================================================
+! genSides.f90
+!
+! PURPOSE:
+!  Create and write cell face arrays for spherical multiple-cell (SMC) grid used 
+!   by WAVEWATCH III
+!
+! REVISION HISTORY:
+!
+! J.G. Li; Met Office; Aug-2007
+!  Initial code development and testing at Met Office
+!
+! J.G. Li; Met Office; Nov-2008 to Jan-2013
+!  Adaptations for new Met Office grid configurations
+!
+! A. Saulter; Met Office; May-2020
+!  Further adaptations for generic grids; code prepared for initial release on 
+!  github
+!
+!==================================================================================
+
+!! Constants module is a common block similar in all AFT Model programs and is
+!!  written in FORTRAN 90.
+!!                     J G Li   26 Oct 2000
 
 MODULE Constants
    IMPLICIT NONE
@@ -21,21 +59,24 @@ MODULE Constants
 ! Parameters fixed in the program
    INTEGER,PARAMETER::NCL=2250000, NFC=2360000
 
-! Array variables to be used for data storage
-   REAL::  CC0, FC0, AKV, RDF, HDF
-   REAL, DIMENSION(0:NCL):: DX, DY, DXR, DYR, CHG
-   INTEGER:: NU, NV, NC, NS, NT, N9, N8, N4, N2, N1, NLon, NLONMAX
+! Variables to be used for data storage
+   INTEGER:: NU, NV, NC, N16, N9, N8, N4, N2, N1, NLon, NLONMAX, NCMAX
    INTEGER:: ICE(4,NCL), KG(NCL)
    INTEGER, DIMENSION(7,NFC)::  ISD
    INTEGER, DIMENSION(8,NFC)::  JSD
    INTEGER:: I,II,IJ,IJK,J,JJ,JK,JKL,K,KK,KL,KLM,L,LL,LM,LMN,M,MM,MN,N,NN
+   INTEGER:: SBD, ABD
+   LOGICAL:: ARCTICG
 
 END MODULE Constants
 
 !!
-!! This program genearte the one level 2D multiple cell grids.
-!! Adapted for multiple cell 2D advection tests using UNO schemes.
-!!                    J G Li   26 Jul 2007
+!! This program generates the one level 2D spherical multiple cell grid
+!!  face arrays.
+!! v1.0 Adapted for multiple cell 2D advection tests using UNO schemes.
+!!       J G Li   26 Jul 2007
+!! v2.0 Preliminary work to generalise for any SMC grid.
+!!       A Saulter 30 Apr 2020
 !!
 
  PROGRAM AdapGrid 
@@ -45,21 +86,24 @@ END MODULE Constants
    REAL:: CNST, CNST1, CNST2, CNST3, BX, BY
 
    REAL:: BXSB, BYSB, BX0, BY0
-   INTEGER:: NBLAT, NBLON, NLEVS, NLat, NPol 
-   NAMELIST /GRID_NML/ NLEVS, NBLAT, NBLON, BXSB, BYSB, BX0, BY0 
+   INTEGER:: NBLAT, NBLON, NLEVS, NLat, NPol
+   LOGICAL:: ARCTIC
+   CHARACTER*80:: FNAME, INAME, JNAME 
+   NAMELIST /GRID_NML/ NLEVS, NBLAT, NBLON, BXSB, BYSB, BX0, BY0, ARCTIC, FNAME, INAME, JNAME 
 
 !  Read the grid NAMELIST
-   OPEN(UNIT=11, FILE='ww3Grid.nml',STATUS='OLD',IOSTAT=nn,ACTION='READ')
+   OPEN(UNIT=11, FILE='smcSides.nml',STATUS='OLD',IOSTAT=nn,ACTION='READ')
    READ (UNIT=11, NML=GRID_NML) 
    CLOSE(11)
 
 !  Calculate cell and dx,dy values for highest tier
    NLon = NBLON * 2**(NLEVS-1)
    NLat = NBLAT * 2**(NLEVS-1)
-   NPol = NLat / 2
+   NPol = NLat
    BX = BXSB / 2.0**(NLEVS-1)
    BY = BYSB / 2.0**(NLEVS-1)
    NLONMAX = NINT(360.0 / BX)
+   ARCTICG = ARCTIC
    
 !  Grid corners set to lower left from read in centre value
    BX0 = BX0 - BXSB/2.0
@@ -67,22 +111,28 @@ END MODULE Constants
 
 !  Read Global Multiple-Cell info
 
-   OPEN(UNIT=9, FILE='ww3Cels.dat',STATUS='OLD',IOSTAT=nn,ACTION='READ')
-   IF(nn /= 0) PRINT*,' File ww3Cels.dat was not opened! '
-   IF (NLEVS .EQ. 1) THEN
-      READ (9,*) NC, N1 
-   ELSE IF (NLEVS .EQ. 2) THEN
-      READ (9,*) NC, N1, N2
-   ELSE IF (NLEVS .EQ. 3) THEN
-      READ (9,*) NC, N1, N2, N4 
-   ELSE IF (NLEVS .EQ. 4) THEN
-      READ (9,*) NC, N1, N2, N4, N8 
+   OPEN(UNIT=9, FILE=TRIM(FNAME),STATUS='OLD',IOSTAT=nn,ACTION='READ')
+   IF(nn /= 0) PRINT*,' Cells .dat file was not opened! '
+   IF (ARCTIC) THEN
+      READ (9,*) NC, SBD, ABD
+   ELSE
+      IF (NLEVS .EQ. 1) THEN
+         READ (9,*) NC, N1 
+      ELSE IF (NLEVS .EQ. 2) THEN
+         READ (9,*) NC, N1, N2
+      ELSE IF (NLEVS .EQ. 3) THEN
+         READ (9,*) NC, N1, N2, N4 
+      ELSE IF (NLEVS .EQ. 4) THEN
+         READ (9,*) NC, N1, N2, N4, N8 
+      ELSE IF (NLEVS .EQ. 5) THEN
+         READ (9,*) NC, N1, N2, N4, N8, N16 
+      ENDIF
    ENDIF
    DO J=1,NC
       READ (9,*) ICE(1,J), ICE(2,J), ICE(3,J), ICE(4,J), KG(J)
    END DO
    CLOSE(9)
-   PRINT*, ' ww3Cels.dat read done  NC=', NC
+   PRINT*, ' Cells .dat read done  NC=', NC
 
 !  Output a few to check input values
    DO J=NC/10,NC,NC/10
@@ -94,8 +144,12 @@ END MODULE Constants
    CALL CellSide
 
 !  Open files to store writups
-   OPEN(UNIT=16,FILE='ww3GSide.txt',STATUS='UNKNOWN',IOSTAT=nn,ACTION='WRITE')
-   IF(nn /= 0) PRINT*,' File messgs.txt was not opened! '
+   IF (ARCTIC) THEN
+      OPEN(UNIT=16,FILE='ww3ASide.txt',STATUS='UNKNOWN',IOSTAT=nn,ACTION='WRITE')
+   ELSE
+      OPEN(UNIT=16,FILE='ww3GSide.txt',STATUS='UNKNOWN',IOSTAT=nn,ACTION='WRITE')
+   ENDIF
+   IF(nn /= 0) PRINT*,' Output file ww3Side.txt was not opened! '
 
 !  Header messages and configuration information 
    WRITE(UNIT=16,FMT='(1x/   &
@@ -104,16 +158,23 @@ END MODULE Constants
    WRITE(UNIT=16,FMT='(1x," Cell Units  BX  BY deg = ",2f14.11)')  BX, BY
    WRITE(UNIT=16,FMT='(1x," Cell Units XLon0 YLat0 = ",2f14.8 )')  BX0, BY0
    WRITE(UNIT=16,FMT='(1x," Horizontal cell number = ",i8)' )  NC
-   IF (NLEVS .EQ. 1) THEN
-      WRITE(UNIT=16,FMT='(1x," Size 1 cell number = ",i8)')  N1, N2
-   ELSE IF (NLEVS .EQ. 2) THEN
-      WRITE(UNIT=16,FMT='(1x," Size 1 2 cell number = ",2i8)')  N1, N2
-   ELSE IF (NLEVS .EQ. 3) THEN
-      WRITE(UNIT=16,FMT='(1x," Size 1 2 4 cell number = ",3i8)')  N1, N2, N4
-   ELSE IF (NLEVS .EQ. 4) THEN
-      WRITE(UNIT=16,FMT='(1x," Size 1 2 4 8 cell number = ",4i8)')  N1, N2, N4, N8
+   IF (ARCTIC) THEN
+      WRITE(UNIT=16,FMT='(1x," Arctic boundary number = ",3i8)')  SBD, ABD
+      WRITE(UNIT=16,FMT='(1x," Lon/Lat/NPol grid No.s = ",3i8)')  NLon, NLat, NPol
+   ELSE
+      IF (NLEVS .EQ. 1) THEN
+         WRITE(UNIT=16,FMT='(1x," Size 1 cell number = ",i8)')  N1
+      ELSE IF (NLEVS .EQ. 2) THEN
+         WRITE(UNIT=16,FMT='(1x," Size 1 2 cell number = ",2i8)')  N1, N2
+      ELSE IF (NLEVS .EQ. 3) THEN
+         WRITE(UNIT=16,FMT='(1x," Size 1 2 4 cell number = ",3i8)')  N1, N2, N4
+      ELSE IF (NLEVS .EQ. 4) THEN
+         WRITE(UNIT=16,FMT='(1x," Size 1 2 4 8 cell number = ",4i8)')  N1, N2, N4, N8
+      ELSE IF (NLEVS .EQ. 5) THEN
+         WRITE(UNIT=16,FMT='(1x," Size 1 2 4 8 16 cell number = ",5i8)')  N1, N2, N4, N8, N16
+      ENDIF
+      WRITE(UNIT=16,FMT='(1x," Lon/Lat grid No.s = ",3i8)')  NLon, NLat
    ENDIF
-   WRITE(UNIT=16,FMT='(1x," Lon/Lat/NPol grid No.s = ",3i8)')  NLon, NLat, NPol
    WRITE(UNIT=16,FMT='(1x," Max Lon grid No.s = ",i8)')  NLONMAX
    WRITE(UNIT=16,FMT='(1x," Total number of U-face = ",i8)' )  NU
    WRITE(UNIT=16,FMT='(1x," Total number of V-face = ",i8)' )  NV
@@ -135,11 +196,12 @@ END MODULE Constants
    USE Constants
    IMPLICIT NONE
    REAL:: CNST, CNST1, CNST2, CNST3
+   LOGICAL:: VERBOSE=.FALSE.
 
 !!    Test integer division for boundary cell numbers
 !!    Size 2**n cell should bounded by -n cells
-      DO ii=0, 8
-         JJ=2**ii
+      DO II=0, 8
+         JJ=2**II
          CNST=FLOAT(JJ)
          K=-INT( LOG(CNST)/LOG(2.) + 0.1)
       Write(6,*) " Cell size and boundary cell index =", JJ, K
@@ -152,34 +214,35 @@ END MODULE Constants
 
       II=0
       JJ=0
-      DO L=1, NC
-!!    Exclude last cell, the North Polar cell.
-!     DO L=1, NC-1
+      IF (ARCTICG) THEN
+         ! Exclude last cell, the North Polar cell.
+         NCMAX = NC-1
+      ELSE
+         NCMAX = NC
+      ENDIF
+
+      DO L=1, NCMAX
 
          IF(MOD(L, 5000) .eq. 0) WRITE(6,*) " Done L=", L, II, JJ
 
 !!  Cyclic boundary for i-side at L-cell east side
          LM=ICE(1,L)+ICE(3,L)
-         !IF(LM .ge. NLon) THEN !old code for global model only
-         !   print*, "Wrapping lon" , LM, NLon
-         !   LM=LM-NLon
-         !ENDIF
          IF(LM .ge. NLONMAX) THEN
-            print*, "Wrapping lon" , LM, NLONMAX
+            IF(VERBOSE) print*, "Wrapping lon" , LM, NLONMAX
             LM=LM-NLONMAX
          ENDIF
 
 !!  Cell height size is different from width size sometimes
          KL=ICE(2,L)+ICE(4,L)
 
-         DO M=1, NC
-!!    Exclude last cell, the North Polar cell.
-!        DO M=1, NC-1
+         DO M=1, NCMAX
 
 !!  Cyclic boundary for i-side at M-cell east side
             MN=ICE(1,M) + ICE(3,M)
-            !IF(MN .ge. NLon) MN=MN-NLon !old code for global model only
-            IF(MN .ge. NLONMAX) MN=MN-NLONMAX
+            IF(MN .ge. NLONMAX) THEN 
+               IF(VERBOSE) print*, "Wrapping lon" , MN, NLONMAX
+               MN=MN-NLONMAX
+            ENDIF
 
 !!  U-faces
             IF(( ICE(1,M) .eq. LM ) .AND.          &
@@ -209,62 +272,61 @@ END MODULE Constants
           END DO
       END DO
  
-      ijk=II
-      lmn=JJ
+      IJK=II
+      LMN=JJ
 
 !     Set boundary u faces
       WRITE(6,*) " Start creating u boundary face II JJ=", II, JJ
 
-!!    Exclude last cell, the North Polar cell.
-!     DO 111 L=1, NC-1
-!!    Loop over all cells.
-      DO 111 L=1, NC
-         i=0
-         j=0
-         ij=0
-         k=0
-         n=0
-         kk=0
+      DO 111 L=1, NCMAX
+         I=0
+         J=0
+         IJ=0
+         K=0
+         N=0
+         KK=0
          
          IF(MOD(L, 10000) .eq. 0) WRITE(6,*) " Done L II=", L, II
 
 !!    Cyclic boundary need to be taken into account
          LM=ICE(1,L)+ICE(3,L)
-         !IF(LM .ge. NLon)  LM=LM-NLon !old code for global model only
-         IF(LM .ge. NLONMAX)  LM=LM-NLONMAX
+         IF(LM .ge. NLONMAX) THEN
+            IF(VERBOSE) print*, "Wrapping lon" , LM, NLONMAX
+            LM=LM-NLONMAX
+         ENDIF
 
 !!    Loop through all inner faces 
-         DO M=1, ijk
+         DO M=1, IJK
 
 !!    See if the L cell west face is covered
             IF( ISD(1,M) .eq. ICE(1,L) ) THEN
                 IF( ISD(2,M) .eq. ICE(2,L) ) THEN
-                    i=1 
-                    ij=ij+ISD(3,M)
+                    I=1 
+                    IJ=IJ+ISD(3,M)
                 ELSEIF( ISD(2,M)+ISD(3,M) .eq. ICE(2,L)+ICE(4,L) ) THEN
-                    j=1
-                    ij=ij+ISD(3,M)
+                    J=1
+                    IJ=IJ+ISD(3,M)
                 ENDIF
             ENDIF
 
 !!          and see if the L cell east face is covered
             IF( ISD(1,M) .eq. LM ) THEN
                 IF( ISD(2,M) .eq. ICE(2,L) )  THEN 
-                    k=1
-                    kk=kk+ISD(3,M)
+                    K=1
+                    KK=KK+ISD(3,M)
                 ELSEIF( ISD(2,M)+ISD(3,M) .eq. ICE(2,L)+ICE(4,L) ) THEN
-                    n=1
-                    kk=kk+ISD(3,M)
+                    N=1
+                    KK=KK+ISD(3,M)
                 ENDIF
             ENDIF
 
-!!  End of inner face M=1,ijk loop
+!!  End of inner face M=1,IJK loop
          END DO
 
-         IF(kk+ij .gt. 2*ICE(4,L) )  WRITE(6,*) "Over done i-side for cell L,ij,kk=", L, ij, kk
-         IF(kk+ij .ge. 2*ICE(4,L) )  GOTO  111
+         IF(KK+IJ .gt. 2*ICE(4,L) )  WRITE(6,*) "Over done i-side for cell L,IJ,KK=", L, IJ, KK
+         IF(KK+IJ .ge. 2*ICE(4,L) )  GOTO  111
 
-          IF(ij .eq. 0)  THEN
+          IF(IJ .eq. 0)  THEN
 !!  Full boundary cell for west side
                II=II+1
                ISD(1,II)=ICE(1,L)
@@ -275,7 +337,7 @@ END MODULE Constants
                ISD(5,II)=-INT( LOG(FLOAT(ISD(3,II)))/LOG(2.) + 0.01 )
                ISD(6,II)=L
           ENDIF
-          IF(kk .eq. 0)  THEN
+          IF(KK .eq. 0)  THEN
 !!  Full boundary cell for east side
                II=II+1
                ISD(1,II)=LM
@@ -287,8 +349,8 @@ END MODULE Constants
           ENDIF
 
 !!  Half cell size west boundary faces
-          IF(ij .gt. 0  .and. ij .lt. ICE(4,L) )  THEN
-             IF( i .eq. 0 )  THEN
+          IF(IJ .gt. 0  .and. IJ .lt. ICE(4,L) )  THEN
+             IF( I .eq. 0 )  THEN
 !!  lower half west cell face
                II=II+1
                ISD(1,II)=ICE(1,L)
@@ -299,7 +361,7 @@ END MODULE Constants
 !!  Size 1 for cell 0, size 2 uses cell -1 and size 4 uses cell -2
                ISD(6,II)=L
              ENDIF
-             IF( j .eq. 0 )  THEN
+             IF( J .eq. 0 )  THEN
 !!  Upper half west cell face
                II=II+1
                ISD(1,II)=ICE(1,L)
@@ -312,8 +374,8 @@ END MODULE Constants
           ENDIF
 
 !!  Half cell size east boundary faces
-          IF(kk .gt. 0  .and. kk .lt. ICE(4,L) )  THEN
-             IF( k .eq. 0 )  THEN
+          IF(KK .gt. 0  .and. KK .lt. ICE(4,L) )  THEN
+             IF( K .eq. 0 )  THEN
 !!  lower half east cell face
                II=II+1
                ISD(1,II)=LM
@@ -324,7 +386,7 @@ END MODULE Constants
 !!  Updated for any 2**n sizes
                ISD(6,II)=-INT( LOG(FLOAT(ISD(3,II)))/LOG(2.) + 0.01 )
              ENDIF
-             IF( n .eq. 0 )  THEN
+             IF( N .eq. 0 )  THEN
 !!  Upper half west cell face
                II=II+1
                ISD(1,II)=LM
@@ -343,50 +405,47 @@ END MODULE Constants
 !     Set boundary v faces
       WRITE(6,*) " Start creating v boundary face II JJ=", II, JJ
 
-!!    Exclude the last polar cell
-!     DO 222 L=1, NC-1
-!!    Loop over all cells
-      DO 222 L=1, NC
-         i=0
-         j=0
-         ij=0
-         k=0
-         n=0
-         nn=0
+      DO 222 L=1, NCMAX
+         I=0
+         J=0
+         IJ=0
+         K=0
+         N=0
+         NN=0
          
          IF(MOD(L, 10000) .eq. 0) WRITE(6,*) " Done L JJ=", L, JJ
 
 !!    Loop through all V faces already set 
-         DO M=1, lmn
+         DO M=1, LMN
 
 !!    See if the L cell south face is covered
             IF( JSD(2,M) .eq. ICE(2,L) ) THEN
                IF( JSD(1,M) .eq. ICE(1,L) ) THEN
-                  i=1
-                  ij=ij+JSD(3,M)
+                  I=1
+                  IJ=IJ+JSD(3,M)
                ELSEIF( JSD(1,M)+JSD(3,M) .eq. ICE(1,L)+ICE(3,L) ) THEN
-                  j=1
-                  ij=ij+JSD(3,M)
+                  J=1
+                  IJ=IJ+JSD(3,M)
                ENDIF
             ENDIF
 !!          and see if the L cell north face is covered
             IF( JSD(2,M) .eq. ICE(2,L) + ICE(4,L) )  THEN 
                IF( JSD(1,M) .eq. ICE(1,L) ) THEN 
-                  k=1
-                  nn=nn+JSD(3,M)
+                  K=1
+                  NN=NN+JSD(3,M)
                ELSEIF( JSD(1,M)+JSD(3,M) .eq. ICE(1,L)+ICE(3,L) )  THEN
-                  n=1
-                  nn=nn+JSD(3,M)
+                  N=1
+                  NN=NN+JSD(3,M)
                ENDIF
             ENDIF
 
-!!   End M=1, lmn V-side loop
+!!   End M=1, LMN V-side loop
          END DO
 
-         IF(nn+ij .gt. 2*ICE(3,L) )  WRITE(6,*)  "Over done j-side for L, ij, nn=", L, ij, nn
-         IF(nn+ij .ge. 2*ICE(3,L) )  GOTO  222
+         IF(NN+IJ .gt. 2*ICE(3,L) )  WRITE(6,*)  "Over done j-side for L, IJ, NN=", L, IJ, NN
+         IF(NN+IJ .ge. 2*ICE(3,L) )  GOTO  222
 
-          IF(ij .eq. 0)  THEN
+          IF(IJ .eq. 0)  THEN
 !!  Full boundary cell for south side
                JJ=JJ+1
                JSD(1,JJ)=ICE(1,L)
@@ -399,28 +458,34 @@ END MODULE Constants
                JSD(8,JJ)=ICE(4,L)
 !!  No cells over Antarctic land so there is no S Polar cell.
           ENDIF
-          IF(nn .eq. 0)  THEN
+          IF(NN .eq. 0)  THEN
 !!  Full boundary cell for north side
                JJ=JJ+1
                JSD(1,JJ)=ICE(1,L)
                JSD(2,JJ)=ICE(2,L)+ICE(4,L)
                JSD(3,JJ)=ICE(3,L)
                JSD(5,JJ)=L
-!!  North polar cell takes the whole last 4 rows above JSD=ICE(2,NC).
-!!  Note ICE(2,L) represents lower-side of the cell.  Polar cell is the last cell NC.
-!            IF( ICE(2,L)+ICE(4,L) .eq. ICE(2,NC) ) THEN
-!              JSD(6,JJ)=NC
-!              WRITE(6,*) "Set north pole v face for cell L", L
-!            ELSE
-!!  Updated for any 2**n sizes
-               JSD(6,JJ)=-INT( LOG(FLOAT(ICE(3,L)))/LOG(2.) + 0.01 )
-!            ENDIF
+               IF (ARCTICG) THEN
+                  !  North polar cell takes the whole last 4 rows above JSD=ICE(2,NC).
+                  !  Note ICE(2,L) represents lower-side of the cell.  
+                  !  Polar cell is the last cell NC.
+                  IF( ICE(2,L)+ICE(4,L) .eq. ICE(2,NC) ) THEN
+                     JSD(6,JJ)=NC
+                     WRITE(6,*) "Set north pole v face for cell L", L
+                  ELSE
+                     !  Updated for any 2**n sizes
+                     JSD(6,JJ)=-INT( LOG(FLOAT(ICE(3,L)))/LOG(2.) + 0.01 )
+                  ENDIF
+               ELSE
+                  !  Updated for any 2**n sizes
+                  JSD(6,JJ)=-INT( LOG(FLOAT(ICE(3,L)))/LOG(2.) + 0.01 )
+               ENDIF
                JSD(8,JJ)=ICE(4,L)
           ENDIF
 
 !!  Half cell size south boundary faces
-          IF(ij .gt. 0  .and. ij .lt. ICE(3,L) )  THEN
-             IF( i .eq. 0 )  THEN
+          IF(IJ .gt. 0  .and. IJ .lt. ICE(3,L) )  THEN
+             IF( I .eq. 0 )  THEN
 !!  left half cell face
                JJ=JJ+1
                JSD(1,JJ)=ICE(1,L)
@@ -430,9 +495,9 @@ END MODULE Constants
 !!  Updated for any 2**n sizes
                JSD(5,JJ)=-INT( LOG(FLOAT(JSD(3,JJ)))/LOG(2.) + 0.01 )
                JSD(6,JJ)=L
-               JSD(8,JJ)=ICE(4,L)/2
+               JSD(8,JJ)=ICE(4,L)
              ENDIF
-             IF( j .eq. 0 )  THEN
+             IF( J .eq. 0 )  THEN
 !!  right half cell face
                JJ=JJ+1
                JSD(1,JJ)=ICE(1,L)+ICE(3,L)/2
@@ -442,13 +507,13 @@ END MODULE Constants
 !!  Updated for any 2**n sizes
                JSD(5,JJ)=-INT( LOG(FLOAT(JSD(3,JJ)))/LOG(2.) + 0.01 )
                JSD(6,JJ)=L
-               JSD(8,JJ)=ICE(4,L)/2
+               JSD(8,JJ)=ICE(4,L)
              ENDIF
           ENDIF
 
 !!  Half cell size north boundary faces
-          IF(nn .gt. 0  .and. nn .lt. ICE(3,L) )  THEN
-             IF( k .eq. 0 )  THEN
+          IF(NN .gt. 0  .and. NN .lt. ICE(3,L) )  THEN
+             IF( K .eq. 0 )  THEN
 !!  left half north cell face
                JJ=JJ+1
                JSD(1,JJ)=ICE(1,L)
@@ -458,9 +523,9 @@ END MODULE Constants
 !!  New boundary cells proportional to cell sizes 
 !!  Updated for any 2**n sizes
                JSD(6,JJ)=-INT( LOG(FLOAT(JSD(3,JJ)))/LOG(2.) + 0.01 )
-               JSD(8,JJ)=ICE(4,L)/2
+               JSD(8,JJ)=ICE(4,L)
              ENDIF
-             IF( n .eq. 0 )  THEN
+             IF( N .eq. 0 )  THEN
 !!  right half north cell face
                JJ=JJ+1
                JSD(1,JJ)=ICE(1,L)+ICE(3,L)/2
@@ -470,7 +535,7 @@ END MODULE Constants
 !!  New boundary cells proportional to cell sizes 
 !!  Updated for any 2**n sizes
                JSD(6,JJ)=-INT( LOG(FLOAT(JSD(3,JJ)))/LOG(2.) + 0.01 )
-               JSD(8,JJ)=ICE(4,L)/2
+               JSD(8,JJ)=ICE(4,L)
              ENDIF
           ENDIF
 
@@ -483,61 +548,61 @@ END MODULE Constants
 !!  Loop over all u faces to find the second cells next to the L and M cells
 !!  Boundary cells will be duplicated for second cells
       WRITE(6,*) " Find extra second u cell II JJ=", II, JJ
-      DO i=1, NU
-         L=ISD(5,i)
-         M=ISD(6,i)
-         kk=0
-         nn=0
+      DO I=1, NU
+         L=ISD(5,I)
+         M=ISD(6,I)
+         KK=0
+         NN=0
 
 !!  Boundary L cell just duplicate it as LL cell
          IF(L .LE. 0) THEN
             ISD(4,i)=L
-            kk=1
+            KK=1
          ELSE
 !!  Find the second LL cell by loop over all faces again
 !!  The two U faces have to share at least one y-end.
-!!  The second U face should be no less than this face.  
+!!  The second U face should be no less than this face.
 !!  Restore one face end equal and suspend no less requirement. JGLi28Feb2012
-            DO k=1, NU
-!              IF( (L .EQ. ISD(6,k)) .AND. (ISD(3,i) .LE. ISD(3,k)) .AND.  &
-               IF( (L .EQ. ISD(6,k)) .AND.   &
-     &             ( (ISD(2,i)+ISD(3,i) .eq. ISD(2,k)+ISD(3,k)) .or.       &
-     &               (ISD(2,i) .eq. ISD(2,k)) ) )  THEN
-                   ISD(4,i)=ISD(5,k)
-                   kk=1
+            DO K=1, NU
+!              IF( (L .EQ. ISD(6,K)) .AND. (ISD(3,I) .LE. ISD(3,K)) .AND.  &
+               IF( (L .EQ. ISD(6,K)) .AND.   &
+     &             ( (ISD(2,I)+ISD(3,I) .eq. ISD(2,K)+ISD(3,K)) .or.       &
+     &               (ISD(2,I) .eq. ISD(2,K)) ) )  THEN
+                   ISD(4,I)=ISD(5,K)
+                   KK=1
                ENDIF
             ENDDO
          ENDIF
 
 !!  Boundary M cell just duplicate it as MM cell
          IF(M .LE. 0) THEN
-            ISD(7,i)=M
-            nn=1
+            ISD(7,I)=M
+            NN=1
          ELSE
 !!  Find the second MM cell by loop over all faces again
 !!  The two U faces have to share at least one y-end.
-            DO n=1, NU
-!              IF( (M .EQ. ISD(5,n)) .AND. (ISD(3,i) .LE. ISD(3,n)) .AND.   &
-               IF( (M .EQ. ISD(5,n)) .AND.                                  &
-     &             ( (ISD(2,i)+ISD(3,i) .eq. ISD(2,n)+ISD(3,n)) .or.        &
-     &               (ISD(2,i) .eq. ISD(2,n)) ) )  THEN
-                   ISD(7,i)=ISD(6,n)
-                   nn=1
+            DO N=1, NU
+!              IF( (M .EQ. ISD(5,N)) .AND. (ISD(3,I) .LE. ISD(3,N)) .AND.   &
+               IF( (M .EQ. ISD(5,N)) .AND.                                  &
+     &             ( (ISD(2,I)+ISD(3,I) .eq. ISD(2,N)+ISD(3,N)) .or.        &
+     &               (ISD(2,I) .eq. ISD(2,N)) ) )  THEN
+                   ISD(7,I)=ISD(6,N)
+                   NN=1
                ENDIF
             ENDDO
          ENDIF
 
 !!  Duplicate central cell if upstream cells are not selected.
-         IF( kk .eq. 0) THEN
-            WRITE(6,*) " L cell duplicated for U face i=", i
-            ISD(4,i)=L
+         IF( KK .eq. 0) THEN
+            WRITE(6,*) " L cell duplicated for U face I=", I
+            ISD(4,I)=L
          ENDIF
-         IF( nn .eq. 0) THEN
-            WRITE(6,*) " M cell duplicated for U face i=", i
-            ISD(7,i)=M
+         IF( NN .eq. 0) THEN
+            WRITE(6,*) " M cell duplicated for U face I=", I
+            ISD(7,I)=M
          ENDIF
 
-         IF(MOD(i, 10000) .eq. 0) WRITE(6,*) " Done U face i=", i
+         IF(MOD(I, 10000) .eq. 0) WRITE(6,*) " Done U face I=", I
 
 !!  End of u face loop
       ENDDO
@@ -546,61 +611,63 @@ END MODULE Constants
 !!  Boundary cells will be duplicated for second cells
       WRITE(6,*) " Find extra second v cell II JJ=", II, JJ
 
-      DO j=1, NV
-         L=JSD(5,j)
-         M=JSD(6,j)
-         kk=0
-         nn=0
+      DO J=1, NV
+         L=JSD(5,J)
+         M=JSD(6,J)
+         KK=0
+         NN=0
 
 !!  Boundary L cell just duplicate it as LL cell
          IF(L .LE. 0) THEN
-            JSD(4,j)=L
-            kk=1
+            JSD(4,J)=L
+            KK=1
          ELSE
 !!  Find the second LL cell by loop over all faces again
 !!  The two V faces have to share at least one x-end.
 !!  Restore one face end equal and suspend no less requirement. JGLi28Feb2012
-            DO k=1, NV
-!              IF( (L .EQ. JSD(6,k)) .AND. (JSD(3,j) .LE. JSD(3,k)) .AND.  &
-               IF( (L .EQ. JSD(6,k)) .AND.                                 &
-     &             ( (JSD(1,j)+JSD(3,j) .eq. JSD(1,k)+JSD(3,k)) .or.       &
-     &               (JSD(1,j) .eq. JSD(1,k)) ) )  THEN 
-                   JSD(4,j)=JSD(5,k)
-                   kk=1
+            DO K=1, NV
+!              IF( (L .EQ. JSD(6,K)) .AND. (JSD(3,J) .LE. JSD(3,K)) .AND.  &
+               IF( (L .EQ. JSD(6,K)) .AND.                                 &
+     &             ( (JSD(1,J)+JSD(3,J) .eq. JSD(1,K)+JSD(3,K)) .or.       &
+     &               (JSD(1,J) .eq. JSD(1,K)) ) )  THEN 
+                   JSD(4,J)=JSD(5,K)
+                   KK=1
                ENDIF
             ENDDO
          ENDIF
 
 !!  Boundary M cell just duplicate it as MM cell
 !!  Duplicate north polar cell as well
-!        IF(M .LE. 0 .OR. M .EQ. NC) THEN
-         IF(M .LE. 0 ) THEN
-            JSD(7,j)=M
-            nn=1
+         IF((ARCTICG) .AND. (M .EQ. NC)) THEN
+            JSD(7,J)=M
+            NN=1
+         ELSEIF(M .LE. 0 ) THEN
+            JSD(7,J)=M
+            NN=1
          ELSE
 !!  Find the second LL cell by loop over all faces again
 !!  The two V faces have to share at least one x-end.
-            DO n=1, JJ
-!              IF( (M .EQ. JSD(5,n)) .AND. (JSD(3,j) .LE. JSD(3,n)) .AND.  &
-               IF( (M .EQ. JSD(5,n)) .AND.                                 &
-     &             ( (JSD(1,j)+JSD(3,j) .eq. JSD(1,n)+JSD(3,n)) .or.       &
-     &               (JSD(1,j) .eq. JSD(1,n)) ) )  THEN 
-                   JSD(7,j)=JSD(6,n)
-                   nn=1
+            DO N=1, JJ
+!              IF( (M .EQ. JSD(5,N)) .AND. (JSD(3,J) .LE. JSD(3,N)) .AND.  &
+               IF( (M .EQ. JSD(5,N)) .AND.                                 &
+     &             ( (JSD(1,J)+JSD(3,J) .eq. JSD(1,N)+JSD(3,N)) .or.       &
+     &               (JSD(1,J) .eq. JSD(1,N)) ) )  THEN 
+                   JSD(7,J)=JSD(6,N)
+                   NN=1
                ENDIF
             ENDDO
          ENDIF
 
-         IF( kk .eq. 0) THEN
-             WRITE(6,*) " L cell duplicated for V face j=", j
-             JSD(4,j)=L
+         IF( KK .eq. 0) THEN
+             WRITE(6,*) " L cell duplicated for V face J=", J
+             JSD(4,J)=L
          ENDIF
-         IF( nn .eq. 0) THEN
-             WRITE(6,*) " M cell duplicated for V face j=", j
-             JSD(7,j)=M
+         IF( NN .eq. 0) THEN
+             WRITE(6,*) " M cell duplicated for V face J=", J
+             JSD(7,J)=M
          ENDIF
 
-         IF(MOD(j, 10000) .eq. 0) WRITE(6,*) " Done V face j=", j
+         IF(MOD(J, 10000) .eq. 0) WRITE(6,*) " Done V face J=", J
 
 !!  End of v face loop
       ENDDO
@@ -608,58 +675,63 @@ END MODULE Constants
 !!  Check whether any overlaping exists
       WRITE(6,*) " Check any overlaping NU NV=", NU, NV
 
-      ij=0
-      DO i=1, NU-1
-         L=ISD(1,i)
-         M=ISD(2,i)
-            DO k=i+1, NU
-               IF( L .EQ. ISD(1,k) .AND. M .EQ. ISD(2,k) )  THEN
-                 ij=ij+1
-                 WRITE(6,*) ij, ' Overlaping u face k, i, j, l, mm, m, n, nn' 
-                 WRITE(6,333) i, (ISD(n,i), n=1,7)
-                 WRITE(6,333) k, (ISD(n,k), n=1,7)
+      IJ=0
+      DO I=1, NU-1
+         L=ISD(1,I)
+         M=ISD(2,I)
+            DO K=I+1, NU
+               IF( L .EQ. ISD(1,K) .AND. M .EQ. ISD(2,K) )  THEN
+                 IJ=IJ+1
+                 WRITE(6,*) IJ, ' Overlaping U face K, I, J, L, MM, M, N, NN' 
+                 WRITE(6,333) I, (ISD(N,I), N=1,7)
+                 WRITE(6,333) K, (ISD(N,K), N=1,7)
                ENDIF
             ENDDO
-         IF(MOD(i, 10000) .eq. 0) WRITE(6,*) " Checked U face i=", i
+         IF(MOD(I, 10000) .eq. 0) WRITE(6,*) " Checked U face I=", I
       ENDDO
 
  333  FORMAT(7I8)
 
-      ij=0
-      DO j=1, NV-1
-         L=JSD(1,j)
-         M=JSD(2,j)
-            DO k=j+1, NV
-               IF( L .EQ. JSD(1,k) .AND. M .EQ. JSD(2,k) )  THEN
-                 ij=ij+1
-                 WRITE(6,*) ij, ' Overlaping v face k, i, j, l, mm, m, n, nn'
-                 WRITE(6,333) j, (JSD(n,j), n=1,7)
-                 WRITE(6,333) k, (JSD(n,k), n=1,7)
+      IJ=0
+      DO J=1, NV-1
+         L=JSD(1,J)
+         M=JSD(2,J)
+            DO K=J+1, NV
+               IF( L .EQ. JSD(1,K) .AND. M .EQ. JSD(2,K) )  THEN
+                 IJ=IJ+1
+                 WRITE(6,*) IJ, ' Overlaping V face K, I, J, L, MM, M, N, NN'
+                 WRITE(6,333) J, (JSD(N,J), N=1,7)
+                 WRITE(6,333) K, (JSD(N,K), N=1,7)
                ENDIF
             ENDDO
-         IF(MOD(j, 10000) .eq. 0) WRITE(6,*) " Checked V face j=", j
+         IF(MOD(J, 10000) .eq. 0) WRITE(6,*) " Checked V face J=", J
       ENDDO
 
 
 !!  Output ISD JSD variables for later use
       WRITE(6,*) " Storing face array info NU,NV=", NU, NV
 
-   OPEN(UNIT=10,FILE='ww3GISide.d',STATUS='UNKNOWN',IOSTAT=nn)
-   IF(nn /= 0) PRINT*,' File Pros was not opened! '
-!     WRITE(10,FMT='(1x,i8)') NU
+   IF (ARCTICG) THEN
+      OPEN(UNIT=10,FILE='ww3AISide.d',STATUS='UNKNOWN',IOSTAT=nn)
+   ELSE
+      OPEN(UNIT=10,FILE='ww3GISide.d',STATUS='UNKNOWN',IOSTAT=nn)
+   ENDIF
+   IF(nn /= 0) PRINT*,' File ISide.d was not opened! '
       DO I=1,NU
-         WRITE(10,FMT='(2i6,i4,4i8)')  (ISD(N,I), N=1,7)
+         WRITE(10,FMT='(2i7,i5,4i8)')  (ISD(N,I), N=1,7)
       END DO
    CLOSE(10)
 
-   OPEN(UNIT=11,FILE='ww3GJSide.d',STATUS='UNKNOWN',IOSTAT=nn)
-   IF(nn /= 0) PRINT*,' File Pros was not opened! '
-!     WRITE(11,FMT='(1x,i8)') NV
+   IF (ARCTICG) THEN
+      OPEN(UNIT=10,FILE='ww3AJSide.d',STATUS='UNKNOWN',IOSTAT=nn)
+   ELSE
+      OPEN(UNIT=10,FILE='ww3GJSide.d',STATUS='UNKNOWN',IOSTAT=nn)
+   ENDIF
+   IF(nn /= 0) PRINT*,' File JSide.d was not opened! '
       DO J=1,NV
-!        WRITE(11,FMT='(2i6,i4,4i8)')  (JSD(N,J), N=1,7)
-         WRITE(11,FMT='(2i6,i4,4i8,i4)')  (JSD(N,J), N=1,8)
+         WRITE(10,FMT='(2i7,i5,4i8,i5)')  (JSD(N,J), N=1,8)
       END DO
-   CLOSE(11)
+   CLOSE(10)
 
    PRINT*, ' I J-Sides output done '
 

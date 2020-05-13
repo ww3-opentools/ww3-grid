@@ -1,0 +1,628 @@
+####
+##- WORKED EXAMPLE: Generate a 4 level global SMC model with base resolution N512, N1024 for all depths
+##-  less than 2000m, N2048 for Eurozone depths less than 500m, 5th level (N8192) on the uK shelf and
+##-  arctic extension
+
+#- This example generates a configuration named as GS512L5A, where G-global, S-SMC, 512-denotes N512 using
+#-  atmopsheric modelling convention (i.e. 2*512=1024 cells of longitude, 512*3/2 cells of latitude), and
+#-  L5-five levels of SMC refinement (N512 refining up to N8192 around coasts)
+
+#- !!!!BE WARNED!!! This is a large grid and the example will take a while to work through.
+
+
+#### 
+##- WORKING DIRECTORY STRUCTURE
+
+#- In the example below 3 data directories are used; this does not have to be followed strictly (all
+#-  the path names can be controlled in configuration files), but helped me organise the data sensibly:
+#-  /[PATHTOBATHYMETRYDIRECTORY]: where the raw bathymetry data underpinning the grid is stored
+#-  /[PATHTOWW3GRIDDIRECTORY]/grid_netCDF: where WAVEWATCH grid netCDF component files are stored 
+#-                                         during the grid generation process
+#-  /[PATHTOWW3GRIDDIRECTORY]/[CONFIGNAME]: where the WAVEWATCH III grid text files, metadata and test
+#-                                          data are stored; I also put .cfg files into this directory
+#-                                          for audit trail purposes
+#- !!!!AS STANDS, THESE DIRECTORIES NEED TO BE SET UP MANUALLY BEFORE RUNNING THIS EXAMPLE
+
+
+####
+##- GRID PREPARATION
+
+#- First step was to generate a background global grid at N4096, in this case from a GEBCO 2019 bathymetry.
+#-  (download link given at https://www.gebco.net/data_and_products/gridded_bathymetry_data/ 
+#-   https://www.bodc.ac.uk/data/open_download/gebco/GEBCO_15SEC/zip/)
+#-   This background grid is used for the first 4 levels of refinement, which are made globally.
+#-  The method uses the scripts in the 'reduce_gebco' directory and I ran the 'interpolate' and 'correct'
+#-  steps separately in order to maximise control of the correction step.
+
+#- For the interpolate step, the following was added to a new 'gebco_reduce.cfg' file:
+
+
+## 'interpolate' action; return a bathymetry interpolated to a defined new grid
+#   parameters as follows:
+#   dx           - float, cell resolution in x (longitude) dimension for the new grid
+#   dy           - float, cell resolution in y (latitude) dimension for the new grid
+#   depthmin     - float, minimum depth for land-sea cut-off (negative for point in sea)
+#   region       - None/string, names for region with extents below
+#   extents      - comma delimited floats, domain corners as SW-lon, SW-lat, NE-lon, NE-lat
+#   pltchk       - true/false, show results of processing using matplotlib
+#   correctlakes - true/false, apply the lake and below MSL land corrections
+#   gebcofile    - string, the GEBCO bathy file
+#   datadir      - string, working directory containing the GEBCO file and reduced file
+[interpolate]
+dx = 0.0439453125
+dy = 0.0292968750
+depthmin = -1.0
+region = None
+extents = None
+pltchk = True
+correctlakes = False
+gebcofile = GEBCO_2019.nc
+datadir = /[PATHTOBATHYMETRYDIRECTORY]
+
+
+#-  and the reduced file at N2048 is generated at /[PATHTOBATHYMETRYDIRECTORY]/GEBCO_interpolated_0d0439by0d0292.nc
+#-  using the script call as follows:
+
+
+python run_gebco_reduce.py interpolate /[PATHTOWW3GRIDDIRECTORY]/GS512L5A/gebco_reduce.cfg
+
+
+#- At this point the new bathymetry has an incorrect representation of the Caspian Sea and other large lakes,
+#-   and includes a number of areas of land below sea level. Here I have fixed the bathymetry to only include
+#-   the Caspian Sea, by adding the following to gebco_reduce.cfg
+
+
+## 'correct' action; update bathymetry to correct elevations for lakes and remove land below mean-sea level
+#   parameters as follows:
+#   depthmin     - float, minimum depth for land-sea cut-off
+#   removesmall  - None/integer, (square) side size for small water bodies to be removed
+#   caspianonly  - true/false, only add CaspianSea as a lake, this may be preferable for large scale global applications
+#   pltchk       - true/false, show results of processing using matplotlib
+#   ncfile       - string, the working reduced GEBCO netCDF bathy/landmask file
+#   datadir      - string, working directory containing the reduced file
+[correct]
+depthmin = -1.0
+removesmall = 2
+caspianonly = True
+pltchk = True
+ncfile = GEBCO_interpolated_0d0439by0d0292.nc
+datadir = /[PATHTOBATHYMETRYDIRECTORY]
+
+
+#-  and running the script using:
+
+
+python run_gebco_reduce.py correct /[PATHTOWW3GRIDDIRECTORY]/GS512L5A/gebco_reduce.cfg
+
+
+#-  It is probably worth noting that the 'correct' step will modify the interpolated netCDF bathy file in
+#-   place, so you may wish to take a copy of the original interpolated data before running this step (e.g.
+#-   if considering a later change to incorporate other large lakes in the model).
+
+
+####
+##- GENERATING THE SMC GRID
+
+#- This step uses the scripts in the 'gridgen' directory. Here the SMC grid is created using a 
+#-  coarse-to-fine approach, i.e. the method will take multiple steps starting by creating the coarsest
+#-  (N512) 'base' grid and then successively adding the refined cells using 'markmulti',
+#-  'tiergen' and 'tiercombine' actions
+
+#- Creating the base grid
+#- Based on 'gridgen_defaults.cfg' I created a new 'gridgen.cfg' configuration file and added a category
+#- named 'basegrid', defining a 'smcbase' action:
+
+
+## 'smcbase' action; generate an initial SMC grid at base resolution
+#   parameters as follows:
+#   workdir      - string, location of working directory for grid netCDF file read/write
+#   bathyfile    - string, location of underpinning bathymetry netCDF file
+#   name         - string, generic name for grid collection
+#   label        - string, identifier for grid development stage
+#   bathyfile    - string, location of underpinning bathymetry netCDF file
+#   extents      - comma delimited floats, domain corners as SW-lon, SW-lat, NE-lon, NE-lat
+#   dx           - float, grid x-axis resolution
+#   dy           - float, grid y-axis resolution
+#   mindepth     - None/float, minimum model depth defined for WAVEWATCH III metadata 
+#                   (defaults to 10m when set None)
+#   drydepthlim  - None/float, cut-off depth for sea to land transition (defaults to 0m when set None)
+#   drypcmin     - None/float, cut-off land percentage for open waters (defaults to 0 when set None)
+#   drypcmax     - None/float, cut-off land percentage for land (defaults to 1 when set None)
+#   getpcland    - True/False, use land percentage information in grid generation (needs bathymetry 
+#                   input file to include 'landmask' variable)
+#   setadj       - True/False, checks for cells adjacent to land for subsequent tier (generally this
+#                   should be set to True)
+[basegrid]
+action = smcbase
+workdir = /[PATHTOWW3GRIDDIRECTORY]/grid_netCDF
+bathyfile = /[PATHTOBATHYMETRYDIRECTORY]/GEBCO_interpolated_0d0439by0d0292.nc
+name = GW2p0
+label = GS512Abase2
+extents = 0.0,-90.0,360.0,90.0
+dx = 0.3515625
+dy = 0.234375 
+mindepth = 15.0 
+drydepthlim = 5.0
+drypcmin = 0.1
+drypcmax = 0.7 
+bathytype = gebco
+getpcland = True 
+setadj = True
+
+
+#- When run, this configuration produces a new netCDF file containing the data for the SMC base grid, in
+#-  a file at /[PATHTOWW3GRIDDIRECTORY]/grid_netCDF/[name]_[label].nc. The action was made by calling the 'run_gridgen.py' script as
+#-  follows:
+
+
+python run_gridgen.py basegrid /[PATHTOWW3GRIDDIRECTORY]/GS512L5A/gridgen.cfg
+
+
+#- Creating the refined grid
+#- In this example the grid refinement consists of additional tiers from 1/2 to 1/16 size of the base
+#-  cell resolution (N1024, N2048, N4096, N8192).
+
+#- The first refinement step sets N1024 size cells for any depths shallower than 2000m, between latitudes 60S and 73N,
+#-  and for a north Atlantic region between latitudes 23N and 73N. The (additional) cells needed to be marked for 
+#-  splitting and generation are set using the 'markmulti' action, which in turn calls a set of 'markregion' actions.
+#-  Configuration is set as follows in the 'gridgen.cfg' file (note two Atlantic regions are defined to deal with the 
+#-  model's 0->360 degrees reference frame):
+
+
+##'markmulti' action; run consecutive marking actions as listed
+#  parameters as follows
+#  marknames     - string, comma separated list of user defined marking actions
+[markmulti1024]
+action = markmulti
+marknames = markcsgbl,marknatl,marknatlext
+
+## 'markregion' action; mark any cells in region as 'tier' or 'dry'
+#   parameters as follows:
+#   workdir      - string, location of working directory for grid netCDF file read/write
+#   basefile     - string, name of the parent SMC grid netCDF file (assumed in workdir)
+#   name         - string, generic name for grid collection
+#   label        - string, identifier for grid development stage
+#   markertype   - string (tier/dry), tier marks cells for splitting, dry marks cells for removal
+#   extents      - comma delimited floats, domain corners as SW-lon, SW-lat, NE-lon, NE-lat
+#   depthlim     - None/float, cut-off depth for cell marking (cells with depth <= depthlim marked)
+[markcsgbl]
+action = markregion
+workdir = /[PATHTOWW3GRIDDIRECTORY]/grid_netCDF
+basefile = GW2p0_GS512Abase2.nc
+name = GW2p0
+label = GS512Acsmark
+markertype = tier
+extents = 0.0,-60.0,360.0,73.0
+depthlim = 2000.0
+
+[marknatl]
+action = markregion
+workdir = /[PATHTOWW3GRIDDIRECTORY]/grid_netCDF
+basefile = GW2p0_GS512Abase2.nc
+name = GW2p0
+label = GS512Acsmark
+markertype = tier
+extents = 278.0,20.0,360.0,73.0
+depthlim = None
+
+[marknatlext]
+action = markregion
+workdir = /[PATHTOWW3GRIDDIRECTORY]/grid_netCDF
+basefile = GW2p0_GS512Abase2.nc
+name = GW2p0
+label = GS512Acsmark
+markertype = tier
+extents = 0.0,48.0,17.0,73.0
+depthlim = None
+
+
+#- The marking actions are run using:
+
+
+python run_gridgen.py markmulti1024 /[PATHTOWW3GRIDDIRECTORY]/GS512L5A/gridgen.cfg
+
+
+#- Once the cells are marked, 'tiergen' and 'tiercombine' actions are used to set the new tier and integrate with the
+#-  base grid. For 'tiergen' the following configuration was added to 'gridgen.cfg':
+
+
+## 'tiergen' action; create a multi-resolution layer from 'tier' cells identified in parent grid
+#   parameters as follows:
+#   workdir      - string, location of working directory for grid netCDF file read/write
+#   basefile     - string, name of the parent SMC grid netCDF file (assumed in workdir)
+#   bathyfile    - string, location of underpinning bathymetry netCDF file
+#   name         - string, generic name for grid collection
+#   label        - string, identifier for grid development stage
+#   bathyfile    - string, location of underpinning bathymetry netCDF file
+#   mindepth     - None/float, minimum model depth defined for WAVEWATCH III metadata 
+#                   (defaults to 10m when set None)
+#   drydepthlim  - None/float, cut-off depth for sea to land transition (defaults to 0m when set None)
+#   drypcmin     - None/float, cut-off land percentage for open waters (defaults to 0 when set None)
+#   drypcmax     - None/float, cut-off land percentage for land (defaults to 1 when set None)
+#   getpcland    - True/False, use land percentage information in grid generation (needs bathymetry 
+#                   input file to include 'landmask' variable)
+#   setadj       - True/False, checks for cells adjacent to land for subsequent tier (generally this
+#                   should be set to True)
+#   deldry       - True/False, removes dry cells from tier before merge with parent grid (generally this
+#                   should be set to False)
+[tier1024]
+action = tiergen
+workdir = /[PATHTOWW3GRIDDIRECTORY]/grid_netCDF
+basefile = GW2p0_GS512Acsmark.nc
+bathyfile = /[PATHTOBATHYMETRYDIRECTORY]/GEBCO_interpolated_0d0439by0d0292.nc
+name = GW2p0
+label = GS512L2AtierL5A
+mindepth = 15.0 
+drydepthlim = 5.0
+drypcmin = 0.1
+drypcmax = 0.7 
+bathytype = gebco
+getpcland = True 
+setadj = True
+deldry = False
+
+
+#- When run, this configuration produces a new netCDF file containing ONLY the data for new tier cells, in
+#-  a file at /[PATHTOWW3GRIDDIRECTORY]/grid_netCDF/[name]_[label].nc. The action was made by calling the 'run_gridgen.py' script as
+#-  follows:
+
+
+python run_gridgen.py tier1024 /[PATHTOWW3GRIDDIRECTORY]/GS512L5A/gridgen.cfg
+
+
+#- The 'tiercombine' action was configured as:
+
+
+## 'tiercombine' action; combine the multi-resolution 'tier' layer with the parent grid
+#   parameters as follows:
+#   workdir      - string, location of working directory for grid netCDF file read/write
+#   basefile     - string, name of the parent SMC grid netCDF file (assumed in workdir)
+#   tierfile     - string, name of the tier data netCDF file (assumed in workdir)
+#   bathyfile    - string, location of underpinning bathymetry netCDF file
+#   name         - string, generic name for grid collection
+#   label        - string, identifier for grid development stage
+#   tiernext     - True/False, mark cells for next tier level (set to True if using a subsequent tier)
+[combine1024]
+action = tiercombine
+workdir = /[PATHTOWW3GRIDDIRECTORY]/grid_netCDF
+basefile = GW2p0_GS512Acsmark.nc
+tierfile = GW2p0_GS512L2AtierL5A.nc
+bathyfile = /[PATHTOBATHYMETRYDIRECTORY]/GEBCO_interpolated_0d0439by0d0292.nc
+name = GW2p0
+label = GS512L2L5A
+tiernext = True
+
+
+#- 'tiernext' is set to True in order to generate a further level of cell refinement.
+#- When run, this configuration produces a new netCDF file containing the SMC grid comprising base and the 
+#-  new (first) tier of cells, in a file at /[PATHTOWW3GRIDDIRECTORY]/grid_netCDF/[name]_[label].nc. The action was made by calling the 
+#-  'run_gridgen.py' script as follows:
+
+
+python run_gridgen.py combine1024 /[PATHTOWW3GRIDDIRECTORY]/GS512L5A/gridgen.cfg
+
+
+#- The second level of refinement creates cells at N2048 but, again, a number of additional cells are marked (this time
+#-  adding N2048 resolution cells below 500m in a designated 'Eurozone') using the 'markmulti' action. This is configured
+#-  and run as follows:
+
+
+[markmulti2048]
+action = markmulti
+marknames = markcseuw,markcseue
+
+[markcseuw]
+action = markregion
+workdir = /[PATHTOWW3GRIDDIRECTORY]/grid_netCDF
+basefile = GW2p0_GS512L2L5A.nc
+name = GW2p0
+label = GS512L2L5Amarkeu
+markertype = tier
+extents = 342.0,30.0,360.0,63.0
+depthlim = 500.0
+
+[markcseue]
+action = markregion
+workdir = /[PATHTOWW3GRIDDIRECTORY]/grid_netCDF
+basefile = GW2p0_GS512L2L5A.nc
+name = GW2p0
+label = GS512L2L5Amarkeu
+markertype = tier
+extents = 0.0,30.0,42.0,63.0
+depthlim = 500.0
+
+
+python run_gridgen.py markmulti2048 /[PATHTOWW3GRIDDIRECTORY]/GS512L5A/gridgen.cfg
+
+
+#-  the 'tiergen' and 'tiercombine' actions are then repeated, using the following configuration data and python calls:
+
+
+[tier2048]
+action = tiergen
+workdir = /[PATHTOWW3GRIDDIRECTORY]/grid_netCDF
+basefile = GW2p0_GS512L2L5Amarkeu.nc
+bathyfile = /[PATHTOBATHYMETRYDIRECTORY]/GEBCO_interpolated_0d0439by0d0292.nc
+name = GW2p0
+label = GS512L3tierL5A
+mindepth = 15.0 
+drydepthlim = 5.0
+drypcmin = 0.1
+drypcmax = 0.7 
+bathytype = gebco
+getpcland = True 
+setadj = True
+deldry = False
+
+
+python run_gridgen.py tier2048 /[PATHTOWW3GRIDDIRECTORY]/GS512L5A/gridgen.cfg
+
+
+[combine2048]
+action = tiercombine
+workdir = /[PATHTOWW3GRIDDIRECTORY]/grid_netCDF
+basefile = GW2p0_GS512L2L5Amarkeu.nc
+tierfile = GW2p0_GS512L3tierL5A.nc
+bathyfile = /[PATHTOBATHYMETRYDIRECTORY]/GEBCO_interpolated_0d0439by0d0292.nc
+name = GW2p0
+label = GS512L3L5A
+tiernext = True
+
+
+python run_gridgen.py combine2048 /[PATHTOWW3GRIDDIRECTORY]/GS512L5A/gridgen.cfg
+
+
+#- The third (N4096) tier adds additional resolution only at coastlines so, in this instance, is generated and combined
+#-  directly using the 'tiergen' and 'tiercombine' actions:
+
+
+[tier4096]
+action = tiergen
+workdir = /[PATHTOWW3GRIDDIRECTORY]/grid_netCDF
+basefile = GW2p0_GS512L3L5A.nc
+bathyfile = /[PATHTOBATHYMETRYDIRECTORY]/GEBCO_interpolated_0d0439by0d0292.nc
+name = GW2p0
+label = GS512L4tierL5A
+mindepth = 15.0 
+drydepthlim = 5.0
+drypcmin = 0.1
+drypcmax = 0.7 
+bathytype = gebco
+getpcland = True 
+setadj = True
+deldry = False
+
+
+python run_gridgen.py tier4096 /[PATHTOWW3GRIDDIRECTORY]/GS512L5A/gridgen.cfg
+
+
+[combine4096]
+action = tiercombine
+workdir = /[PATHTOWW3GRIDDIRECTORY]/grid_netCDF
+basefile = GW2p0_GS512L3L5A.nc
+tierfile = GW2p0_GS512L4tierL5A.nc
+bathyfile = /[PATHTOBATHYMETRYDIRECTORY]/GEBCO_interpolated_0d0439by0d0292.nc
+name = GW2p0
+label = GS512L4L5A
+tiernext = True
+
+
+python run_gridgen.py combine4096 /[PATHTOWW3GRIDDIRECTORY]/GS512L5A/gridgen.cfg
+
+
+#- The final tier (N8192) is added for the UK shelf coastlines only. These cells are resolved below the 
+#-  grid scale set for the source bathymetry, so a new bathymetry file (covering this region only) is 
+#-  first generated using 'reduce_gebco' functions, which I added to a new 'gebco_reduce_uk.cfg' file:
+
+
+## 'reduce' action; return a bathymetry averaged over N=scalefac cells
+#   parameters as follows:
+#   scalefac     - integer, integer reduction factor for the grid
+#   depthmin     - float, minimum depth for land-sea cut-off (negative for point in sea)
+#   region       - None/string, names for region with extents below
+#   extents      - comma delimited floats, domain corners as SW-lon, SW-lat, NE-lon, NE-lat
+#   pltchk       - true/false, show results of processing using matplotlib
+#   correctlakes - true/false, apply the lake and below MSL land corrections
+#   gebcofile    - string, the GEBCO bathy file
+#   datadir      - string, working directory containing the GEBCO file and reduced file
+[reduce]
+scalefac = 2
+depthmin = -1.0
+region = ukshelf
+extents = 340.0,42.0,13.0,63.0
+pltchk = True
+correctlakes = False
+gebcofile = GEBCO_2019.nc
+datadir = /[PATHTOBATHYMETRYDIRECTORY]
+
+
+#- In this case a 'reduce' action is used since the required resolution of the grid (~2.5km) is close to
+#-  that of the GEBCO 2019 bathymetry (15 seconds, ~926m) and the required dx,dy cell precision levels are
+#-  more than 10dp. The action is run using:
+
+
+python run_gebco_reduce.py reduce /[PATHTOWW3GRIDDIRECTORY]/GS512L5A/gebco_reduce_uk.cfg
+
+
+
+#- Next, the parent grid is adjusted so that only tier cells and dry cells in the desired N8192 region
+#-  are kept. This uses an 'unmark' action configured as follows:
+
+
+## 'unmark' action; set cells of 'dry' or 'tier' type to wet
+#   parameters as follows:
+#   workdir      - string, location of working directory for grid netCDF file read/write
+#   basefile     - string, name of the parent SMC grid netCDF file (assumed in workdir)
+#   name         - string, generic name for grid collection
+#   label        - string, identifier for grid development stage
+#   markertype   - string (tier/dry), tier marks cells for splitting, dry marks cells for removal
+#   extents      - comma delimited floats, domain corners as SW-lon, SW-lat, NE-lon, NE-lat
+#   osbox        - True/False, unmark the cells outside the bounding box (default is inside)
+#   thruzero     - True/False, using a bounding box that passes through Greenwich meridian for global grid
+#   deldry       - run a delCells action to remove dry cells after unmark process (helps speed up a final
+#                  tier operation)
+[unmark8192]
+action = unmark
+workdir = /[PATHTOWW3GRIDDIRECTORY]/grid_netCDF
+basefile = GW2p0_GS512L4L5A.nc
+name = GW2p0
+label = GS512L4L5Amarkuk
+markertype = tier
+extents = 344.0,45.0,9.4,61.15
+osbox = True
+thruzero = True
+deldry = True
+
+
+#- and run using:
+
+
+python run_gridgen.py unmark8192 /[PATHTOWW3GRIDDIRECTORY]/GS512L5A/gridgen.cfg
+
+
+#- At this point the final tier can be added for the UK region using 'tiergen' and 'tiercombine' actions:
+
+[tier8192]
+action = tiergen
+workdir = /project/ofrd/waves/wavegrids/global/grid_netCDF
+basefile = GW2p0_GS512L4L5Amarkuk.nc
+bathyfile = /project/ofrd/bathymetry/GEBCO_2019/GEBCO_reduced_ukshelf_2.nc
+name = GW2p0
+label = GS512L5tierL5A
+mindepth = 15.0 
+drydepthlim = 5.0
+drypcmin = 0.1
+drypcmax = 0.7 
+bathytype = gebco
+getpcland = True 
+setadj = True
+deldry = False
+
+
+python run_gridgen.py tier8192 /[PATHTOWW3GRIDDIRECTORY]/GS512L5A/gridgen.cfg
+
+
+[combine8192]
+action = tiercombine
+workdir = /project/ofrd/waves/wavegrids/global/grid_netCDF
+basefile = GW2p0_GS512L4L5Amarkuk.nc
+tierfile = GW2p0_GS512L5tierL5A.nc
+bathyfile = /project/ofrd/bathymetry/GEBCO_2019/GEBCO_reduced_ukshelf_2.nc
+name = GW2p0
+label = GS512L5A
+tiernext = False
+
+
+python run_gridgen.py tier8192 /[PATHTOWW3GRIDDIRECTORY]/GS512L5A/gridgen.cfg
+
+
+#- This produces a final grid netCDF file named /[PATHTOWW3GRIDDIRECTORY]/GS512L5A/GW2p0_GS512L5A.nc
+
+
+
+####
+##- PREPARING THE SMC GRID FOR WAVEWATCH III
+
+#- Having created an SMC grid and saved in netCDF format, the next stage is to create the files needed for
+#-  creating a moddef file using ww3_grid
+
+#- Initially the 'run_gridgen.py' script is used to create the SMC grid ww3Cels.dat (ww3ArcCels.dat) 
+#-  and ww3Obstr.dat files, plus accompanying metadata for ww3_grid (in smc.ww3meta.txt for v4.18, 
+#-  or smc.ww3_grid.nml.txt for v6.xx), forcing data pre-processing (in smc.ww3.grid_def), and an
+#-  smcGrid.nml (arcGrid.nml) file which is used for grid cell face generation and propagation testing.
+#- Based on 'gridgen_defaults.cfg' I added a category named 'writeWW3', defining a 'writeWW3' action, to 
+#-  my 'gridgen.cfg' configuration file (NB I've ignored the arctic options as the grid stops at 85N):
+
+
+## 'writeWW3' action; write cell data and associated grid metadata to WAVEWATCH III text format files
+#   parameters as follows:
+#   workdir       - string, location of working directory for grid netCDF file read/write
+#   gridfile      - string, name of the SMC grid netCDF file (assumed in workdir)
+#   writedir      - string, location of directory to write WW3 format files
+#   mindepth      - None/float, minimum model depth defined for WAVEWATCH III metadata 
+#                    (defaults to grid file value when set None)
+#   writemindepth - True/False, writes minimum depth rather than smaller values in grid bathy file
+#                    (normally set false, as WW3 will use a minimum depth set in ww3_grid namelist)
+[writeWW3]
+action = writeWW3
+workdir = /[PATHTOWW3GRIDDIRECTORY]/grid_netCDF
+gridfile = GW2p0_GS512L5A.nc
+writedir = /[PATHTOWW3GRIDDIRECTORY]/GS512L5A
+mindepth = None
+writemindepth = False
+arctic = True
+arclat = 86.4
+
+
+#- and ran the script as follows:
+
+
+python run_gridgen.py writeWW3 /[PATHTOWW3GRIDDIRECTORY]/GS512L5A/gridgen.cfg
+
+
+#- The next step is to generate the cell-face arrays used to link cells in the SMC grid's propagation scheme.
+#-  Processing is quite intensive for large grids. A bash script 'run_genSides.sh' is used to invoke the
+#-  fortran routine genSides.f90 (the necessary executable can be built using 'make_genSides.sh')
+#- In this case I need to generate face arrays for both the main global grid (up to 86.4N) and the arctic
+#-  extension. So the script needs to be run twice using both standard and arctic namelists:
+
+
+./run_genSides.sh /[PATHTOWW3GRIDDIRECTORY]/GS512L5A smcGrid.nml
+./run_genSides.sh /[PATHTOWW3GRIDDIRECTORY]/GS512L5A arcGrid.nml
+
+
+#- The result from these runs is to produce the files ww3GISide.dat,ww3GJSide.dat 
+#- In principle all the necessary files and metadata to run this grid with WAVEWATCH III have now been generated!!
+
+ww3Cels.dat  ww3GISide.dat  ww3GJSide.dat  ww3Obstr.dat [main part of the grid**]
+ww3AISide.dat  ww3AJSide.dat  ww3ArcCels.dat            [arctic extension for the grid]  
+smc.ww3meta.txt                                         [data for input to ww3_grid.inp in v4.18]
+smc.ww3_grid.nml.txt                                    [namelist input to ww3_grid.nml in v6.07 or later]
+smc.ww3.grid_def                                        [data for input to Met Office forcing pre-processing scripts]
+
+
+####
+##- PLOTTING THE SMC GRID
+
+#- An initial view of the SMC grid can be made by running the script 'run_plotSMCgrid.py' from 'smc_test' as follows:
+
+
+python run_plotSMCgrid.py GS512L5A /[PATHTOWW3GRIDDIRECTORY]/GS512L5A
+
+
+#-  where the 'GS512L5A' (first) variable provided to the script is the name I want to give this model configuration.
+#-  Running the script results in generation of a postscript file 'GS512L5A_Globgrd.ps' in the working directory, plus
+#-  a file named 'GS512L5A_VrtsGlob.npz' which is used later when plotting the results of the SMC propagation tests.
+
+
+####
+##- TESTING THE SMC GRID PROPAGATION
+
+#- The grid can also be checked, prior to deployment in WAVEWATCH III, by running a propgation test, using the tools
+#-  in 'smc_test'
+
+#- The propagation tests use data defined in the 'smcGrid.nml' file. In theory this should not need to be modified
+#-  from the default as output from gridgen. Processing is quite intensive for large grids. A bash script 
+#-  'run_smcProps.sh' is used to invoke the fortran routine smcProps.f90 (the necessary executable can be built using 
+#-  'make_smcProps.sh')From 'smc_test' the propagation script is run as:
+
+./run_smcProps.sh /[PATHTOWW3GRIDDIRECTORY]/GS512L5A
+
+
+#- NOTE: this script expects the namelist smcGrid.nml to be present in the working directory and, also, that the
+#-  working directory is writable
+#- The result of the propagation run will be to add a subdirectory 'smcProps' to the working directory and place
+#-  output logs and results of the run into that directory (results files are Hs10[TTT].d, where TTT is time in hours,
+#-   0 to 144 at 3 hour intervals, i.e. a 6 day run)
+
+#- The propagation run will normally have been successful if not 'inf' or 'nan' values are produced in the '*.d'
+#-  files generated by this test. Graphical views of the results can be created by running the script 
+#-  'run_plotSMCprops.py' from 'smc_test' as follows:
+
+
+python run_plotSMCprops.py GS512L5A /[PATHTOWW3GRIDDIRECTORY]/GS512L5A
+
+
+#-  where the 'GS512L5A' (first) variable provided to the script is the name of the model configuration.
+#-  Running the script results in generation of a postscript files 'Hs10[TTT].ps' (where TTT is time in hours,
+#-   0 to 144 at 3 hour intervals, i.e. a 6 day run) in the smcProps directory.
